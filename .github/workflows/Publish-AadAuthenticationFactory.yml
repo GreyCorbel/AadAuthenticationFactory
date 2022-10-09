@@ -26,6 +26,25 @@ jobs:
       run: |
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
 
+    - name: Sign PowerShell scripts
+      shell: pwsh
+      env:
+        CERTPASS: ${{secrets.GC_SIGNING_CERT_PASSWORD}}
+        SIGNCERT: ${{secrets.GC_SIGNING_CERT}}
+      run: |
+        try
+        {
+          $buffer = [System.Convert]::FromBase64String($env:SIGNCERT)
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::New($buffer, $env:CERTPASS)
+          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml | 
+          Set-AuthenticodeSignature -HashAlgorithm SHA256 -Certificate $certificate -TimestampServer http://timestamp.digicert.com       
+        }
+        catch
+        {
+          Write-Host "Error: $($_.Exception)"
+          throw
+        }
+    
     - name: Publish
       #Publish to PS Gallery
       shell: pwsh

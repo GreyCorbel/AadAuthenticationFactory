@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace GreyCorbel.Identity.Authentication
+﻿namespace GreyCorbel.Identity.Authentication
 {
     internal class ManagedIdentityAuthenticationResponse
     {
