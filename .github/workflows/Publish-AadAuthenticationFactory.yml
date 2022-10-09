@@ -53,34 +53,4 @@ jobs:
           Write-Host "Error: $($_.Exception)"
           throw
         }
-    
-    - name: Publish
-      #Publish to PS Gallery
-      shell: pwsh
-      env:
-        SECRET: ${{ secrets.PSGallery_APIKey }}
-      run: |
-        write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory"
-        try
-        {
-          $env:PSModulePath = "$env:PSModulePath;$env:GITHUB_WORKSPACE\Module"
-          "PSModulePath: $env:PSModulePath"
-          Publish-Module -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -NuGetApiKey "$env:SECRET"
-        }
-        catch
-        {
-          Write-Host "Error: $($_.Exception)"
-          throw
-        }
-
-    - name: Create Release
-      #Create a release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions automatically
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false        
+   
