@@ -35,7 +35,7 @@ jobs:
       run: |
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
 
-    - name: Sign PowerShell scripts
+    - name: Sign files
       shell: pwsh
       env:
         CERTPASS: ${{secrets.GC_SIGNING_CERT_PASSWORD}}
@@ -45,13 +45,29 @@ jobs:
         {
           $buffer = [System.Convert]::FromBase64String($env:SIGNCERT)
           $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::New($buffer, $env:CERTPASS)
-          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml | 
-          Set-AuthenticodeSignature -HashAlgorithm SHA256 -Certificate $certificate -TimestampServer http://timestamp.digicert.com   
-          Set-AuthenticodeSignature -HashAlgorithm SHA256 -Certificate $certificate -TimestampServer http://timestamp.digicert.com -FilePath "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"    
+          #sign powershell files
+          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" `
+            -File `
+            -Recurse `
+            -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml `
+          | Set-AuthenticodeSignature `
+              -HashAlgorithm SHA256 `
+              -Certificate $certificate `
+              -TimestampServer http://timestamp.digicert.com  `
+          | Format-List
+          
+          #sign our own binary
+          Set-AuthenticodeSignature `
+            -HashAlgorithm SHA256 `
+            -Certificate $certificate `
+            -TimestampServer http://timestamp.digicert.com `
+            -FilePath "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll" `
+          | Format-List
         }
         catch
         {
           Write-Host "Error: $($_.Exception)"
           throw
         }
+
    
