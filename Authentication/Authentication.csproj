@@ -7,7 +7,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>GreyCorbel.Identity.Authentication</AssemblyName>
     <RootNamespace>GreyCorbel.Identity.Authentication</RootNamespace>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Authors>Jiri Formacek</Authors>
     <Company>GreyCorbel Solutions</Company>
     <Product>Unified AAD Authentication client library for Public, Confidential and ManagedIdentity client authentication</Product>
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if exist C:\TFS\DigiCertUtil.exe (&#xD;&#xA;    Echo Signing executable&#xD;&#xA;    C:\TFS\DigiCertUtil.exe sign /noinput &quot;$(TargetPath)&quot;&#xD;&#xA;)&#xD;&#xA;copy /Y &quot;$(TargetPath)&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;" />
+    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;" />
   </Target>
 
 </Project>

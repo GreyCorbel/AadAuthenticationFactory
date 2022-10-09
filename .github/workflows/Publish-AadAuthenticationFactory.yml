@@ -19,9 +19,18 @@ jobs:
     steps:
     - name: Checkout
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
-    - name: Build
+    - name: Build binaries
+      shell: pwsh
+      run: | 
+        Push-Location "$env:GITHUB_WORKSPACE\Authentication"
+        dotnet restore
+        dotnet build --configuration Release
+        dotnet test
+        Pop-Location
+    
+    - name: Build Module
       shell: pwsh
       run: |
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
@@ -36,7 +45,7 @@ jobs:
         {
           $buffer = [System.Convert]::FromBase64String($env:SIGNCERT)
           $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::New($buffer, $env:CERTPASS)
-          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml | 
+          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml, *.dll | 
           Set-AuthenticodeSignature -HashAlgorithm SHA256 -Certificate $certificate -TimestampServer http://timestamp.digicert.com       
         }
         catch
