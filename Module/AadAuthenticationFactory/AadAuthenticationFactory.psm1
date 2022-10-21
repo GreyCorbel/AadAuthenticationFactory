@@ -183,7 +183,9 @@ Command works in Federated environment with ADFS. Command authenticates user sil
         [Parameter()]
             #Scopes to be returned in the token.
             #If not specified, returns scopes provided when creating the factory
-        [string[]]$Scopes = $null
+        [string[]]$Scopes = $null,
+            #If set, command returns hashtable with Authorization header containing acess token
+        [switch]$AsHashTable
     )
 
     process
@@ -191,7 +193,16 @@ Command works in Federated environment with ADFS. Command authenticates user sil
         try {
             #I don't know how to support Ctrl+Break
             $task = $factory.AuthenticateAsync($scopes)
-            $task.GetAwaiter().GetResult()
+            $result = $task.GetAwaiter().GetResult()
+            if($AsHashTable)
+            {
+                @{
+                    Authorization = $result.CreateAuthorizationHeader()
+                }
+            }
+            else {
+                $result
+            }
         }
         catch [System.OperationCanceledException] {
             Write-Verbose "Authentication process has been cancelled"

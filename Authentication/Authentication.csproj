@@ -12,6 +12,7 @@
     <Company>GreyCorbel Solutions</Company>
     <Product>Unified AAD Authentication client library for Public, Confidential and ManagedIdentity client authentication</Product>
 	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+	  <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +20,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;..\Module\AadAuthenticationFactory\Shared\netstandard2.0\&quot;" />
+    <Exec Command="@echo off&#xD;&#xA;set modulesFolder=..\Module\AadAuthenticationFactory\Shared\netstandard2.0&#xD;&#xA;if not exist &quot;%25modulesFolder%25&quot; (&#xD;&#xA;    echo Creating folder for outputs&#xD;&#xA;    md &quot;%25modulesfolder%25&quot;&#xD;&#xA;)&#xD;&#xA;echo Copying outputs to %25modulesFolder%25&#xD;&#xA;copy /Y &quot;$(TargetPath)&quot; &quot;%25modulesfolder%25&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;%25modulesfolder%25&quot;" />
   </Target>
 
 </Project>
