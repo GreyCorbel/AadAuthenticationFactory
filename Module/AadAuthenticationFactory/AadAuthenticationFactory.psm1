@@ -176,7 +176,7 @@ invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers
 
 Description
 -----------
-Command works in Federated environment with ADFS. Command authenticates user silently with current credentials against ADFS and uses ADFS token to retrieve token from AAD
+Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call of REST method
 
 #>
 
