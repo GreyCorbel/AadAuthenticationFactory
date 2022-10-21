@@ -168,6 +168,12 @@ For deatils on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure
 $factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode WIA
 $token = $factory | Get-AadToken
 
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/mypai/.default') -AuthMode WIA
+$headers = Get-AadToken -AsHashtable
+invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
+
+
 Description
 -----------
 Command works in Federated environment with ADFS. Command authenticates user silently with current credentials against ADFS and uses ADFS token to retrieve token from AAD
