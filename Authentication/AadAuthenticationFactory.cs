@@ -236,10 +236,33 @@ namespace GreyCorbel.Identity.Authentication
             _publicClientApplication = builder.Build();
         }
 
+
+        /// <summary>
+        /// Returns authentication result for on-behalf-of flow
+        /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
+        /// </summary>
+        /// <param name="jwtBearerToken">Access token for user to be used as an assertion for on-behal-of flow</param>
+        /// <param name="requiredScopes">Scopes to ask for</param>
+        /// <returns cref="AuthenticationResult">Authentication result object either returned MSAL library</returns>
+        /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
+        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, string[] requiredScopes)
+        {
+            using CancellationTokenSource cts = new(TimeSpan.FromMinutes(2));
+
+            UserAssertion ua = new UserAssertion(jwtBearerToken);
+            switch (_flow)
+            {
+                case AuthenticationFlow.ConfidentialClient:
+                    return await _confidentialClientApplication.AcquireTokenOnBehalfOf(requiredScopes, ua).ExecuteAsync(cts.Token);
+            }
+            throw new ArgumentException($"Unsupported authentication flow for on-behalf-of: {_flow}");
+        }
+
         /// <summary>
         /// Returns authentication result
         /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
         /// </summary>
+        /// <param name="requiredScopes">Scopes to ask for</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response, as returned by cref="ManagedIdentityClientApplication.ApiVersion" version of endpoint</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
         public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes = null)
