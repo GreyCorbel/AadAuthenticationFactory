@@ -81,4 +81,33 @@ $graphFactory = New-AadAuthenticationFactory -TenantId 'mytenant.com' -ClientId 
 $graphToken = Get-AadToken -Factory $graphFactory
 
 ```
+## On-Behalf-Of flow
+This is useful for testing of authentication flows in multi-tier apps.
+```powershell
+$myTenant = 'mydomain.com'
+$myNativeClientId = '<enter appId of client app talking to 1st tier>'
+$myFrontendScopes = 'https://mycompany.com/1stTierApp/.default'
+$myFrontendAppId = '<enter appId of 1st tier app talking to 2nd tier>'
+$myFrontendClientSecret = "<enter client secret of 1st tier app>"
+$myBackendScopes = 'https://mycompany.com/2ndTierApp/.default'
 
+
+$frontendAppFactory = New-AadAuthenticationFactory -TenantId $myTenant -RequiredScopes $myFrontendScopes -ClientId $myNativeClientId -AuthMode Interactive
+#get access token for frontend app
+$frontendAppToken = Get-AadToken -Factory $frontendAppFactory
+#observe claims in access token for frontend app
+$frontendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty payload
+#observe claims in Id token for native client app
+$frontendAppToken.IdToken | Test-AadToken | Select-Object -ExpandProperty payload
+
+#create factory to retrieve token as frontend app on behalf of user
+#note that app needs to present its client secret/certificate to get onbehalf-of token
+$backendAppFactory = New-AadAuthenticationFactory -TenantId $myTenant -RequiredScopes $myBackendScopes -ClientId $myFrontendAppId -ClientSecret $myFrontendClientSecret
+#retrieve access token
+$backendAppToken = Get-AadToken -Factory $backendAppFactory -UserToken $frontendAppToken.AccessToken
+#observe claims in access token for backend app
+$backendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty payload
+#observe claims in Id token for frontend app
+$backendAppToken.IdToken | Test-AadToken | Select-Object -ExpandProperty payload
+
+```

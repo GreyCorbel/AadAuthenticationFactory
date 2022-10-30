@@ -206,14 +206,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             #I don't know how to support Ctrl+Break
             if(-not [string]::IsNullOrEmpty($UserToken))
             {
-                if($null -eq $Scopes)
-                {
-                    throw "When UserToken specified, Scopes must also be specified"
-                }
-                else
-                {
-                    $task = $factory.AuthenticateAsync($UserToken, $scopes)
-                }
+                $task = $factory.AuthenticateAsync($UserToken, $scopes)
             }
             else
             {
@@ -361,17 +354,39 @@ function Init
         {
             'Core'
             {
-                Add-type -Path "$PSScriptRoot\Shared\netcoreapp2.1\Microsoft.Identity.Client.dll"
+                #only load when not present
+                try {
+                    [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
+                }
+                catch
+                {
+                    Add-type -Path "$PSScriptRoot\Shared\netcoreapp2.1\Microsoft.Identity.Client.dll"
+                }
                 break;
             }
             'Desktop'
             {
-                Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
+                #only load when not present
+                try {
+                    [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
+                }
+                catch
+                {
+                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
+                }
                 Add-Type -Assembly System.Net.Http
                 break;
             }
         }
-        Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
+
+        #only load when not present
+        try {
+            [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
+        }
+        catch
+        {
+            Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
+        }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     }

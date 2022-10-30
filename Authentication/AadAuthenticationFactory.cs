@@ -245,9 +245,11 @@ namespace GreyCorbel.Identity.Authentication
         /// <param name="requiredScopes">Scopes to ask for</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned MSAL library</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, string[] requiredScopes)
+        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, string[] requiredScopes = null)
         {
             using CancellationTokenSource cts = new(TimeSpan.FromMinutes(2));
+            if (null == requiredScopes)
+                requiredScopes = _scopes;
 
             UserAssertion ua = new UserAssertion(jwtBearerToken);
             switch (_flow)
