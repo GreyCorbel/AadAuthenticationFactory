@@ -65,10 +65,9 @@ namespace GreyCorbel.Identity.Authentication
         /// <param name="clientId">ClientId to use. If not specified, clientId of Azure Powershell is used</param>
         /// <param name="scopes">List of scopes that clients asks for</param>
         /// <param name="loginApi">AAD endpoint that will handle the authentication.</param>
-        /// <param name="authenticationMode">Type of public client flow to use</param>
+        /// <param name="authenticationMode">Type of public client flow to use. Supported flows as Interactive, DeviceCode and WIA</param>
         /// <param name="userNameHint">Which username to use in auth UI in case there may be multiple names available</param>
         /// <param name="proxy">Optional configuration of proxy for internet access</param>
-
         public AadAuthenticationFactory(
             string tenantId, 
             string clientId, 
@@ -264,7 +263,7 @@ namespace GreyCorbel.Identity.Authentication
         /// Returns authentication result
         /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
         /// </summary>
-        /// <param name="requiredScopes">Scopes to ask for</param>
+        /// <param name="requiredScopes">Scopes to ask for and if different than passed to factory constructor.</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response, as returned by cref="ManagedIdentityClientApplication.ApiVersion" version of endpoint</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
         public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes = null)

@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace GreyCorbel.Identity.Authentication
 {
-    internal class VMIdentityTokenProvider:TokenProvider
+    internal class VMIdentityTokenProvider : TokenProvider
     {
         public VMIdentityTokenProvider(IMsalHttpClientFactory factory, string clientId = null)
         : base(factory, clientId)
@@ -35,7 +35,6 @@ namespace GreyCorbel.Identity.Authentication
             }
             else
                 throw new MsalClientException(response.StatusCode.ToString(), response.ReasonPhrase);
-
         }
 
         HttpRequestMessage CreateRequestMessage(string[] scopes)

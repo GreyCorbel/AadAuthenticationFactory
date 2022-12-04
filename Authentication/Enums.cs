@@ -14,7 +14,7 @@
         /// </summary>
         DeviceCode,
         /// <summary>
-        /// Windows Integrated Authentication - supported on machines joined to AD, or hybrid joined
+        /// Windows Integrated Authentication - supported on machines joined to AD, or hybrid joined, and authenticating with ADFS
         /// </summary>
         WIA,
     }
