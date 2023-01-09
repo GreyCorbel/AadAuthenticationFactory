@@ -32,10 +32,11 @@ Command works in on prem environment where access to internet is available via p
 
     param
     (
-        [Parameter(Mandatory)]
+        [Parameter()]
+        [Alias("RequiredScopes")]
         [string[]]
             #Scopes to ask token for
-        $RequiredScopes,
+        $DefaultScopes,
 
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithCertificate')]
@@ -144,7 +145,7 @@ function Get-AadToken
     Retrieves AAD token according to configuration of authentication factory
 
 .OUTPUTS
-    Authentication result from AAD with tokens and other information
+    Authentication result from AAD with tokens and other information, or hashtable with Authorization header
 
 .EXAMPLE
 $factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
@@ -156,27 +157,30 @@ Command creates authentication factory and retrieves AAD token from it, authenti
 
 .EXAMPLE
 $cosmosDbAccountName = 'myCosmosDBAcct
-$factory = New-AadAuthenticationFactory -RequiredScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
+$factory = New-AadAuthenticationFactory -DefaultScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
 $token = $factory | Get-AadToken
 
 Description
 -----------
 Command creates authentication factory and retrieves AAD token for access data plane of cosmos DB aaccount.
-For deatils on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
+For details on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode WIA
-$token = $factory | Get-AadToken
-
-.EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/mypai/.default') -AuthMode WIA
-$headers = Get-AadToken -AsHashtable
-invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
-
+$factory = New-AadAuthenticationFactory -TenantId mydomain.com -AuthMode WIA
+$token = $factory | Get-AadToken -Scopes @('https://eventgrid.azure.net/.default')
 
 Description
 -----------
-Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call of REST method
+Command creates authentication factory without default scopes and retrieves AAD token for access to event grid, specifying scopes when asking for token
+
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/myapi/.default') -AuthMode WIA
+$headers = Get-AadToken -AsHashtable
+Invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
+
+Description
+-----------
+Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
 
 #>
 
@@ -187,16 +191,17 @@ Command shows how to get token as hashtable containing properly formatted Author
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory,
         [Parameter()]
+        [Alias("RequiredScopes")]
             #Scopes to be returned in the token.
-            #If not specified, returns scopes provided when creating the factory
+            #If not specified, returns token with default scopes provided when creating the factory
         [string[]]$Scopes = $null,
-            #If set, command returns hashtable with Authorization header containing acess token
         [Parameter()]
-            #access token for user
-            #used to identify for in on-behalf-of flows
+            #Access token for user
+            #Used to identify user in on-behalf-of flows
         [string]$UserToken,
-            #when specified, hashtable with Authorization header is returned instead of token
-            #this is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
+            #When specified, hashtable with Authorization header is returned instead of token
+            #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
+            #When not specified, returns authentication result with tokens and other metadata
         [switch]$AsHashTable
     )
 
