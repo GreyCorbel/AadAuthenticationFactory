@@ -241,20 +241,24 @@ namespace GreyCorbel.Identity.Authentication
         /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
         /// </summary>
         /// <param name="jwtBearerToken">Access token for user to be used as an assertion for on-behal-of flow</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <param name="requiredScopes">Scopes to ask for</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned MSAL library</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, string[] requiredScopes = null)
+        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, CancellationToken cancellationToken, string[] requiredScopes = null)
         {
-            using CancellationTokenSource cts = new(TimeSpan.FromMinutes(2));
             if (null == requiredScopes)
                 requiredScopes = _scopes;
+
+            if (null == requiredScopes || requiredScopes.Count() == 0)
+                throw new ArgumentException("No scope(s) specified");
 
             UserAssertion ua = new UserAssertion(jwtBearerToken);
             switch (_flow)
             {
                 case AuthenticationFlow.ConfidentialClient:
-                    return await _confidentialClientApplication.AcquireTokenOnBehalfOf(requiredScopes, ua).ExecuteAsync(cts.Token);
+                    return await _confidentialClientApplication.AcquireTokenOnBehalfOf(requiredScopes, ua)
+                        .ExecuteAsync(cancellationToken);
             }
             throw new ArgumentException($"Unsupported authentication flow for on-behalf-of: {_flow}");
         }
@@ -264,11 +268,11 @@ namespace GreyCorbel.Identity.Authentication
         /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
         /// </summary>
         /// <param name="requiredScopes">Scopes to ask for and if different than passed to factory constructor.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response, as returned by cref="ManagedIdentityClientApplication.ApiVersion" version of endpoint</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes = null)
+        public async Task<AuthenticationResult> AuthenticateAsync(CancellationToken cancellationToken, string[] requiredScopes = null)
         {
-            using CancellationTokenSource cts = new(TimeSpan.FromMinutes(2));
             AuthenticationResult result;
             if (null == requiredScopes)
                 requiredScopes = _scopes;
@@ -294,7 +298,7 @@ namespace GreyCorbel.Identity.Authentication
                         else
                         {
                             result = await _publicClientApplication.AcquireTokenByIntegratedWindowsAuth(_scopes).WithUsername(_userNameHint)
-                                .ExecuteAsync(cts.Token);
+                                .ExecuteAsync(cancellationToken);
                             //let the app throw to caller when UI required as the purpose here is to stay silent
                         }
                         return result;
@@ -311,11 +315,12 @@ namespace GreyCorbel.Identity.Authentication
                         try
                         {
                             result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
-                                              .ExecuteAsync(cts.Token);
+                                              .ExecuteAsync(cancellationToken);
                         }
                         catch (MsalUiRequiredException)
                         {
-                            result = await _publicClientApplication.AcquireTokenInteractive(requiredScopes).ExecuteAsync(cts.Token);
+                            result = await _publicClientApplication.AcquireTokenInteractive(requiredScopes)
+                                .ExecuteAsync(cancellationToken);
                         }
                         return result;
                     }
@@ -330,7 +335,7 @@ namespace GreyCorbel.Identity.Authentication
                         try
                         {
                             result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
-                                              .ExecuteAsync(cts.Token);
+                                              .ExecuteAsync(cancellationToken);
                         }
                         catch (MsalUiRequiredException)
                         {
@@ -338,18 +343,18 @@ namespace GreyCorbel.Identity.Authentication
                                 {
                                     Console.WriteLine(callback.Message);
                                     return Task.FromResult(0);
-                                }).ExecuteAsync(cts.Token);
+                                }).ExecuteAsync(cancellationToken);
                         }
                         return result;
                     }
                 case AuthenticationFlow.ConfidentialClient:
-                    return await _confidentialClientApplication.AcquireTokenForClient(requiredScopes).ExecuteAsync(cts.Token);
+                    return await _confidentialClientApplication.AcquireTokenForClient(requiredScopes).ExecuteAsync(cancellationToken);
                 //System Managed identity
                 case AuthenticationFlow.ManagedIdentity:
-                    return await _managedIdentityClientApplication.AcquireTokenForClientAsync(requiredScopes, cts.Token);
+                    return await _managedIdentityClientApplication.AcquireTokenForClientAsync(requiredScopes, cancellationToken);
                 //User managed identity
                 case AuthenticationFlow.UserAssignedIdentity:
-                    return await _managedIdentityClientApplication.AcquireTokenForClientAsync(requiredScopes, cts.Token);
+                    return await _managedIdentityClientApplication.AcquireTokenForClientAsync(requiredScopes, cancellationToken);
                 //ROPC flow
                 case AuthenticationFlow.ResourceOwnerPassword:
                 {
@@ -363,11 +368,12 @@ namespace GreyCorbel.Identity.Authentication
                     try
                     {
                         result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
-                                            .ExecuteAsync(cts.Token);
+                                            .ExecuteAsync(cancellationToken);
                     }
                     catch (MsalUiRequiredException)
                     {
-                        result = await _publicClientApplication.AcquireTokenByUsernamePassword(requiredScopes, _userNameHint, _resourceOwnerPassword).ExecuteAsync(cts.Token);
+                        result = await _publicClientApplication.AcquireTokenByUsernamePassword(requiredScopes, _userNameHint, _resourceOwnerPassword)
+                                .ExecuteAsync(cancellationToken);
                     }
                     return result;
                 }

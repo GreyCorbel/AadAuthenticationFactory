@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+
+	<PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>GreyCorbel.Identity.PSInternal</AssemblyName>
+    <RootNamespace>GreyCorbel.Identity.Authentication</RootNamespace>
+	  <Version>1.2.3</Version>
+	  <Authors>Jiri Formacek</Authors>
+	  <Company>GreyCorbel Solutions</Company>
+	  <Product>Helper library to support async token retrieval from powershell and cancellation </Product>
+	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+	  <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+	  <PackageProjectUrl>https://github.com/GreyCorbel/AadAuthenticationFactory</PackageProjectUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.43.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AadAuthenticationFactory\AadAuthenticationFactory.csproj" />
+  </ItemGroup>
+	<ItemGroup>
+		<Reference Include="System.Management.Automation">
+			<HintPath>\Windows\assembly\GAC_MSIL\System.Management.Automation\1.0.0.0__31bf3856ad364e35\System.Management.Automation.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	  <Exec Command="@echo off&#xD;&#xA;set modulesFolder=..\..\Module\AadAuthenticationFactory\Shared\netstandard2.0&#xD;&#xA;if not exist &quot;%25modulesFolder%25&quot; (&#xD;&#xA;    echo Creating folder for outputs&#xD;&#xA;    md &quot;%25modulesfolder%25&quot;&#xD;&#xA;)&#xD;&#xA;echo Copying outputs to %25modulesFolder%25&#xD;&#xA;copy /Y &quot;$(TargetPath)&quot; &quot;%25modulesfolder%25&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;%25modulesfolder%25&quot;" />
+	</Target>
+
+</Project>

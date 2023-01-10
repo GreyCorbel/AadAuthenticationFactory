@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GreyCorbel.Identity.PSInternal</name>
+    </assembly>
+    <members>
+        <member name="T:GreyCorbel.Identity.Authentication.GetAadTokenInternal">
+            <summary>
+            Command to retrieve token from factory, supporting cancellation via Ctrl+C/Ctrl+Break
+            </summary>
+        </member>
+        <member name="F:GreyCorbel.Identity.Authentication.GetAadTokenInternal.Factory">
+            <summary>
+            Instance of AadAuthentication factory
+            </summary>
+        </member>
+        <member name="F:GreyCorbel.Identity.Authentication.GetAadTokenInternal.Scopes">
+            <summary>
+            Required scopes, if different from default registered when creating factory
+            </summary>
+        </member>
+        <member name="F:GreyCorbel.Identity.Authentication.GetAadTokenInternal.UserToken">
+            <summary>
+            User token for on-behalf-of flow
+            </summary>
+        </member>
+        <member name="M:GreyCorbel.Identity.Authentication.GetAadTokenInternal.ProcessRecord">
+            <summary>
+            Processes the request
+            </summary>
+        </member>
+        <member name="M:GreyCorbel.Identity.Authentication.GetAadTokenInternal.StopProcessing">
+            <summary>
+            To support Ctrl+Break
+            </summary>
+        </member>
+    </members>
+</doc>

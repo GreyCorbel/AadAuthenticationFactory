@@ -183,7 +183,7 @@ Description
 Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
 
 #>
-
+    [CmdletBinding()]
     param
     (
         [Parameter(ValueFromPipeline)]
@@ -207,32 +207,10 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     process
     {
-        try {
-            #I don't know how to support Ctrl+Break
-            if(-not [string]::IsNullOrEmpty($UserToken))
-            {
-                $task = $factory.AuthenticateAsync($UserToken, $scopes)
-            }
-            else
-            {
-                $task = $factory.AuthenticateAsync($scopes)
-            }
-            $result = $task.GetAwaiter().GetResult()
-            if($AsHashTable)
-            {
-                @{
-                    Authorization = $result.CreateAuthorizationHeader()
-                }
-            }
-            else {
-                $result
-            }
-        }
-        catch [System.OperationCanceledException] {
-            Write-Verbose "Authentication process has been cancelled"
-        }
+        Get-AadTokenInternal -Factory $factory -UserToken $UserToken -Scopes $Scopes 
     }
-}
+ }
+
 function Test-AadToken
 {
     <#
@@ -242,7 +220,7 @@ function Test-AadToken
 .DESCRIPTION
     Parses provided IdToken or AccessToken and checks for its validity.
     Note that some tokens may not be properly validated - this is in case then 'nonce' field present and set in the haeder. AAD issues such tokens for Graph API and nonce is taken into consideration when validating the token.
-    See discussing at https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for more details.
+    See discussion at https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for more details.
 
 .OUTPUTS
     Parsed token and information about its validity
@@ -391,6 +369,7 @@ function Init
         catch
         {
             Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
+            Import-Module "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" -Scope Global
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
