@@ -246,7 +246,7 @@ namespace GreyCorbel.Identity.Authentication
         /// <param name="requiredScopes">Scopes to ask for</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned MSAL library</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, CancellationToken cancellationToken, string[] requiredScopes = null)
+        public async Task<AuthenticationResult> AuthenticateAsync(string jwtBearerToken, string[] requiredScopes, CancellationToken cancellationToken)
         {
             if (null == requiredScopes)
                 requiredScopes = _scopes;
@@ -272,7 +272,7 @@ namespace GreyCorbel.Identity.Authentication
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response, as returned by cref="ManagedIdentityClientApplication.ApiVersion" version of endpoint</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(CancellationToken cancellationToken, string[] requiredScopes = null)
+        public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes, CancellationToken cancellationToken)
         {
             AuthenticationResult result;
             if (null == requiredScopes)

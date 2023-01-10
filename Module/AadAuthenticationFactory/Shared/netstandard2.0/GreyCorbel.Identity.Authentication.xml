@@ -94,7 +94,7 @@
             <param name="password">Resource owner password</param>
             <param name="proxy">Optional configuration of proxy for internet access</param>
         </member>
-        <member name="M:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.AuthenticateAsync(System.String,System.Threading.CancellationToken,System.String[])">
+        <member name="M:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.AuthenticateAsync(System.String,System.String[],System.Threading.CancellationToken)">
             <summary>
             Returns authentication result for on-behalf-of flow
             Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
@@ -105,7 +105,7 @@
             <returns cref="T:Microsoft.Identity.Client.AuthenticationResult">Authentication result object either returned MSAL library</returns>
             <exception cref="T:System.ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
         </member>
-        <member name="M:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.AuthenticateAsync(System.Threading.CancellationToken,System.String[])">
+        <member name="M:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.AuthenticateAsync(System.String[],System.Threading.CancellationToken)">
             <summary>
             Returns authentication result
             Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?

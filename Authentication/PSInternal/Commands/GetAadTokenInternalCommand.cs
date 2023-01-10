@@ -12,7 +12,7 @@ namespace GreyCorbel.Identity.Authentication
     /// Command to retrieve token from factory, supporting cancellation via Ctrl+C/Ctrl+Break
     /// </summary>
     [Cmdlet("Get", "AadTokenInternal")]
-    public class GetAadTokenInternal:Cmdlet
+    public class GetAadTokenInternalCommand:Cmdlet
     {
         /// <summary>
         /// Instance of AadAuthentication factory
@@ -41,11 +41,11 @@ namespace GreyCorbel.Identity.Authentication
             AuthenticationResult result;
             if (string.IsNullOrWhiteSpace(UserToken))
             {
-                result = Factory.AuthenticateAsync(_cts.Token, Scopes).GetAwaiter().GetResult();
+                result = Factory.AuthenticateAsync(Scopes, _cts.Token).GetAwaiter().GetResult();
             }
             else
             {
-                result = Factory.AuthenticateAsync(UserToken, _cts.Token, Scopes).GetAwaiter().GetResult();
+                result = Factory.AuthenticateAsync(UserToken, Scopes, _cts.Token).GetAwaiter().GetResult();
             }
             WriteObject(result);
         }

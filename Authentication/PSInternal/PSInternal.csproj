@@ -7,7 +7,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>GreyCorbel.Identity.PSInternal</AssemblyName>
     <RootNamespace>GreyCorbel.Identity.Authentication</RootNamespace>
-	  <Version>1.2.3</Version>
+	  <Version>2.0.0</Version>
 	  <Authors>Jiri Formacek</Authors>
 	  <Company>GreyCorbel Solutions</Company>
 	  <Product>Helper library to support async token retrieval from powershell and cancellation </Product>
