@@ -92,6 +92,7 @@ namespace GreyCorbel.Identity.Authentication
             {
                 case AuthenticationMode.WIA:
                     _flow = AuthenticationFlow.PublicClientWithWia;
+                    //we're expected to send creds with request to federated IdP (e.g. ADFS)
                     useDefaultCredentials = true;
                     break;
                 case AuthenticationMode.DeviceCode:
@@ -101,7 +102,7 @@ namespace GreyCorbel.Identity.Authentication
                     _flow = AuthenticationFlow.PublicClient;
                     break;
             }
-
+            
             var builder = PublicClientApplicationBuilder.Create(_clientId)
                 .WithDefaultRedirectUri()
                 .WithAuthority($"{_loginApi}/{tenantId}")

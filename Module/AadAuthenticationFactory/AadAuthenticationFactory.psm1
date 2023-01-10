@@ -333,6 +333,7 @@ function Init
 
     process
     {
+        #load platform specific
         switch($PSEdition)
         {
             'Core'
@@ -357,18 +358,21 @@ function Init
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 }
+                #on desktop, this one is not pre-loaded
                 Add-Type -Assembly System.Net.Http
                 break;
             }
         }
 
-        #only load when not present
+        #load generic
         try {
             [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
         }
         catch
         {
             Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
+            #load binary module once.
+            #Use Global so it's available in other commands of this module
             Import-Module "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" -Scope Global
         }
 
