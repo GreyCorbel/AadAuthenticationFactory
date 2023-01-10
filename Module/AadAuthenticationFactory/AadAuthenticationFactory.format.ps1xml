@@ -62,5 +62,28 @@
             </TableRowEntries>
         </TableControl>
         </View>
+        <View>
+        <Name>TokenValidationResult</Name>
+        <ViewSelectedBy>
+            <TypeName>GreyCorbel.Identity.Authentication.AadAuthenticationFactory</TypeName>
+        </ViewSelectedBy>
+        <TableControl>
+            <TableRowEntries>
+            <TableRowEntry>
+                <TableColumnItems>
+                    <TableColumnItem>
+                        <PropertyName>TenantId</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
+                        <PropertyName>ClientId</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
+                        <PropertyName>Scopes</PropertyName>
+                    </TableColumnItem>
+                </TableColumnItems>
+            </TableRowEntry>
+            </TableRowEntries>
+        </TableControl>
+        </View>
     </ViewDefinitions>
 </Configuration>

@@ -111,23 +111,23 @@ Command works in on prem environment where access to internet is available via p
         switch($PSCmdlet.ParameterSetName)
         {
             'ConfidentialClientWithSecret' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $clientSecret, $RequiredScopes, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
                 break;
             }
             'ConfidentialClientWithCertificate' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $X509Certificate, $RequiredScopes, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
                 break;
             }
             'PublicClient' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $RequiredScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
+                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
                 break;
             }
             'MSI' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($ClientId, $RequiredScopes,$proxy)
+                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($ClientId, $DefaultScopes,$proxy)
                 break;
             }
             'ResourceOwnerPasssword' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $RequiredScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
                 break;
             }
         }
