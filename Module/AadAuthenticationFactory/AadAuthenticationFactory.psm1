@@ -207,7 +207,25 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     process
     {
-        Get-AadTokenInternal -Factory $factory -UserToken $UserToken -Scopes $Scopes 
+        if(-not [string]::IsNullOrEmpty($UserToken))
+        {
+            $task = $Factory.AuthenticateAsync($UserToken, $Scopes, [System.Threading.CancellationToken]::None)
+        }
+        else
+        {
+            $task = $Factory.AuthenticateAsync($Scopes, [System.Threading.CancellationToken]::None)
+        }
+        $rslt = $task.GetAwaiter().GetResult()
+        if($AsHashTable)
+        {
+            @{
+                'Authorization' = $rslt.CreateAuthorizationHeader()
+            }
+        }
+        else
+        {
+            $rslt
+        }
     }
  }
 
@@ -373,7 +391,7 @@ function Init
             Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
             #load binary module once.
             #Use Global so it's available in other commands of this module
-            Import-Module "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" -Scope Global
+            #Import-Module "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" -Scope Global
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
