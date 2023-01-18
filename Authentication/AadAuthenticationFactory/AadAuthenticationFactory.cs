@@ -22,11 +22,13 @@ namespace GreyCorbel.Identity.Authentication
         /// </summary>
         public string TenantId { get { return _tenantId; } }
         private readonly string _tenantId;
+
         /// <summary>
         /// ClientId to be used for authentication flows
         /// </summary>
         public string ClientId {get {return _clientId;}}
         private readonly string _clientId;
+
         /// <summary>
         /// AAD authorization endpoint. Defaults to public AAD
         /// </summary>
@@ -36,17 +38,30 @@ namespace GreyCorbel.Identity.Authentication
         /// <summary>
         /// Scopes the factory asks for when asking for tokens
         /// </summary>
-        public string[] Scopes {get {return _scopes;}}
+        public string[] DefaultScopes {get {return _scopes;}}
         private readonly string[] _scopes;
         
-        //type of auth flow to use
-        private readonly AuthenticationFlow _flow;
-
         /// <summary>
         /// UserName hint to use in authentication flows to help select proper user. Useful in case multiple accounts are logged in.
         /// </summary>
         public string UserName { get { return _userNameHint; } }
         private readonly string _userNameHint;
+
+        /// <summary>
+        /// AuthenticationMode factory uses to get tokens
+        /// </summary>
+        public AuthenticationMode AuthenticationMode
+        {
+            get
+            {
+                return _authMode;
+            }
+        }
+        private readonly AuthenticationMode _authMode;
+
+        //type of auth flow to use
+        private readonly AuthenticationFlow _flow;
+
 
         /// <summary>
         /// Password for ROPC flow
@@ -86,6 +101,7 @@ namespace GreyCorbel.Identity.Authentication
             _scopes = scopes;
             _userNameHint = userNameHint;
             _tenantId = tenantId;
+            _authMode = authenticationMode;
 
             bool useDefaultCredentials = false;
             switch(authenticationMode)
@@ -131,6 +147,7 @@ namespace GreyCorbel.Identity.Authentication
             _clientId = clientId;
             _loginApi = loginApi;
             _scopes = scopes;
+            _authMode = AuthenticationMode.Silent;
 
             _flow = AuthenticationFlow.ConfidentialClient;
 
@@ -162,6 +179,7 @@ namespace GreyCorbel.Identity.Authentication
             _clientId = clientId;
             _loginApi = loginApi;
             _scopes = scopes;
+            _authMode = AuthenticationMode.Silent;
 
             _flow = AuthenticationFlow.ConfidentialClient;
 
@@ -193,6 +211,7 @@ namespace GreyCorbel.Identity.Authentication
             }
             _managedIdentityClientApplication = new ManagedIdentityClientApplication(new GcMsalHttpClientFactory(proxy), _clientId);
             _flow = AuthenticationFlow.UserAssignedIdentity;
+            _authMode = AuthenticationMode.Silent;
         }
 
         /// <summary>
@@ -227,6 +246,7 @@ namespace GreyCorbel.Identity.Authentication
             _tenantId = tenantId;
 
             _flow = AuthenticationFlow.ResourceOwnerPassword;
+            _authMode = AuthenticationMode.Silent;
 
             var builder = PublicClientApplicationBuilder.Create(_clientId)
                 .WithDefaultRedirectUri()

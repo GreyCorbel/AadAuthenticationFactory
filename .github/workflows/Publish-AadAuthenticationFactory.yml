@@ -66,13 +66,6 @@ jobs:
           | Select-Object Path,Status `
           | Format-List
           
-          Set-AuthenticodeSignature `
-            -HashAlgorithm SHA256 `
-            -Certificate $certificate `
-            -TimestampServer http://timestamp.digicert.com `
-            -FilePath "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" `
-          | Select-Object Path,Status `
-          | Format-List
         }
         catch
         {

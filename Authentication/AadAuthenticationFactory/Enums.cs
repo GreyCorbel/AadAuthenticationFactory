@@ -17,6 +17,10 @@
         /// Windows Integrated Authentication - supported on machines joined to AD, or hybrid joined, and authenticating with ADFS
         /// </summary>
         WIA,
+        /// <summary>
+        /// Non-interactive flow - login process does not require UI
+        /// </summary>
+        Silent
     }
 
     /// <summary>

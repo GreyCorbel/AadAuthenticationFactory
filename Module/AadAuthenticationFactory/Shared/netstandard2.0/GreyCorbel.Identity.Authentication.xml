@@ -24,7 +24,7 @@
             AAD authorization endpoint. Defaults to public AAD
             </summary>
         </member>
-        <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.Scopes">
+        <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.DefaultScopes">
             <summary>
             Scopes the factory asks for when asking for tokens
             </summary>
@@ -32,6 +32,11 @@
         <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.UserName">
             <summary>
             UserName hint to use in authentication flows to help select proper user. Useful in case multiple accounts are logged in.
+            </summary>
+        </member>
+        <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.AuthenticationMode">
+            <summary>
+            AuthenticationMode factory uses to get tokens
             </summary>
         </member>
         <member name="F:GreyCorbel.Identity.Authentication.AadAuthenticationFactory._resourceOwnerPassword">
@@ -133,6 +138,11 @@
         <member name="F:GreyCorbel.Identity.Authentication.AuthenticationMode.WIA">
             <summary>
             Windows Integrated Authentication - supported on machines joined to AD, or hybrid joined, and authenticating with ADFS
+            </summary>
+        </member>
+        <member name="F:GreyCorbel.Identity.Authentication.AuthenticationMode.Silent">
+            <summary>
+            Non-interactive flow - login process does not require UI
             </summary>
         </member>
         <member name="T:GreyCorbel.Identity.Authentication.AuthenticationFlow">

@@ -207,24 +207,56 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     process
     {
-        if(-not [string]::IsNullOrEmpty($UserToken))
+        [System.Threading.CancellationTokenSource]$cts
+        switch($Factory.AuthenticationMode)
         {
-            $task = $Factory.AuthenticateAsync($UserToken, $Scopes, [System.Threading.CancellationToken]::None)
-        }
-        else
-        {
-            $task = $Factory.AuthenticateAsync($Scopes, [System.Threading.CancellationToken]::None)
-        }
-        $rslt = $task.GetAwaiter().GetResult()
-        if($AsHashTable)
-        {
-            @{
-                'Authorization' = $rslt.CreateAuthorizationHeader()
+            'DeviceCode' {
+                [timespan]$timeout = [timespan]::FromSeconds(120)
+                break;
+            }
+            'Interactive' {
+                [timespan]$timeout = [timespan]::FromSeconds(60)
+                break;
+            }
+            'Interactive' {
+                [timespan]$timeout = [timespan]::FromSeconds(30)
+                break;
+            }
+            default {
+                [timespan]$timeout = [timespan]::FromSeconds(10)
+                break;
             }
         }
-        else
-        {
-            $rslt
+
+        try {
+            $cts = new-object System.Threading.CancellationTokenSource($timeout)
+    
+            if(-not [string]::IsNullOrEmpty($UserToken))
+            {
+                $task = $Factory.AuthenticateAsync($UserToken, $Scopes, $cts.Token)
+            }
+            else
+            {
+                $task = $Factory.AuthenticateAsync($Scopes, [System.Threading.CancellationToken]::None)
+            }
+
+            $rslt = $task.GetAwaiter().GetResult()
+            if($AsHashTable)
+            {
+                @{
+                    'Authorization' = $rslt.CreateAuthorizationHeader()
+                }
+            }
+            else
+            {
+                $rslt
+            }
+        }
+        finally {
+            if($null -ne $cts)
+            {
+                $cts.Dispose()
+            }
         }
     }
  }

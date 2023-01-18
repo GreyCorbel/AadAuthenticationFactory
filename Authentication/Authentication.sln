@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33205.214
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AadAuthenticationFactory", ".\AadAuthenticationFactory\AadAuthenticationFactory.csproj", "{8EBB112E-0961-4D26-AEEB-93D9D268E074}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AadAuthenticationFactory", "AadAuthenticationFactory\AadAuthenticationFactory.csproj", "{8EBB112E-0961-4D26-AEEB-93D9D268E074}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PSInternal", ".\PSInternal\PSInternal.csproj", "{055D0E3A-4E25-4082-9724-56E224DD5F1E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PSInternal", "PSInternal\PSInternal.csproj", "{055D0E3A-4E25-4082-9724-56E224DD5F1E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,7 +20,6 @@ Global
 		{055D0E3A-4E25-4082-9724-56E224DD5F1E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{055D0E3A-4E25-4082-9724-56E224DD5F1E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{055D0E3A-4E25-4082-9724-56E224DD5F1E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{055D0E3A-4E25-4082-9724-56E224DD5F1E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
