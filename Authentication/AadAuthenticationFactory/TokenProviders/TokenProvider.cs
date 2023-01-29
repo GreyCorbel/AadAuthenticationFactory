@@ -14,7 +14,7 @@ namespace GreyCorbel.Identity.Authentication
         protected static string MsiEndpoint => Environment.GetEnvironmentVariable("MSI_ENDPOINT");
         protected static string MsiSecret => Environment.GetEnvironmentVariable("MSI_SECRET");
         protected static string ImdsEndpoint => Environment.GetEnvironmentVariable("IMDS_ENDPOINT");
-        public static string ApiVersion => "2020-06-01";
+        public static string ApiVersion => "2019-08-01";
         protected static string SecretHeaderName => "X-IDENTITY-HEADER";
         protected static string ClientIdHeaderName => "client_id";
 

@@ -63,7 +63,7 @@
         </TableControl>
         </View>
         <View>
-        <Name>TokenValidationResult</Name>
+        <Name>AuthenticationFactory</Name>
         <ViewSelectedBy>
             <TypeName>GreyCorbel.Identity.Authentication.AadAuthenticationFactory</TypeName>
         </ViewSelectedBy>
@@ -78,7 +78,7 @@
                         <PropertyName>ClientId</PropertyName>
                     </TableColumnItem>
                     <TableColumnItem>
-                        <PropertyName>Scopes</PropertyName>
+                        <PropertyName>DefaultScopes</PropertyName>
                     </TableColumnItem>
                 </TableColumnItems>
             </TableRowEntry>
