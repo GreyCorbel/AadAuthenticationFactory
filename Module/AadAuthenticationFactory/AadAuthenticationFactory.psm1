@@ -207,6 +207,11 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     process
     {
+        if($null -eq $Factory)
+        {
+            Write-Error "Please pass valid instance of AadAuthenticationFactory"
+            return
+        }
         switch($Factory.AuthenticationMode)
         {
             'DeviceCode' {
@@ -299,7 +304,8 @@ Command creates authentication factory, asks it to issue token for EventGrid and
         $parts = $token.split('.')
         if($parts.Length -ne 3)
         {
-            throw 'Invalid format of provided token'
+            Write-Error 'Invalid format of provided token'
+            return
         }
         
         $result = [PSCustomObject]@{
