@@ -217,7 +217,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                 [timespan]$timeout = [timespan]::FromSeconds(60)
                 break;
             }
-            'Interactive' {
+            'WIA' {
                 [timespan]$timeout = [timespan]::FromSeconds(30)
                 break;
             }
