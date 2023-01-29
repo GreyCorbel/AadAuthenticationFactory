@@ -207,7 +207,6 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     process
     {
-        [System.Threading.CancellationTokenSource]$cts
         switch($Factory.AuthenticationMode)
         {
             'DeviceCode' {
@@ -229,7 +228,7 @@ Command shows how to get token as hashtable containing properly formatted Author
         }
 
         try {
-            $cts = new-object System.Threading.CancellationTokenSource($timeout)
+            [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource($timeout)
     
             if(-not [string]::IsNullOrEmpty($UserToken))
             {
@@ -290,7 +289,9 @@ Command creates authentication factory, asks it to issue token for EventGrid and
         [Parameter(Mandatory,ValueFromPipeline)]
         [string]
         #IdToken or AccessToken field from token returned by Get-AadToken
-        $Token
+        $Token,
+        [switch]
+        $PayloadOnly
     )
 
     process
@@ -348,7 +349,14 @@ Command creates authentication factory, asks it to issue token for EventGrid and
             Write-Verbose "Header contains nonce, so token may not be properly validated. See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609"
         }
         $result.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.TokenValidationResult')
-        $result
+        if($PayloadOnly)
+        {
+            $result.Payload
+        }
+        else
+        {
+            $result
+        }
     }
 }
 

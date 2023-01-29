@@ -14,9 +14,6 @@
             <Label>Header</Label>
             </TableColumnHeader>
             <TableColumnHeader>
-            <Label>Resource</Label>
-            </TableColumnHeader>
-            <TableColumnHeader>
             <Label>Audience</Label>
             </TableColumnHeader>
             <TableColumnHeader>
@@ -33,13 +30,6 @@
                         <ScriptBlock>
                         <![CDATA[
                         "$($_.Header.typ) $($_.Header.alg) $($_.Header.kid)"
-                        ]]>
-                        </ScriptBlock>
-                    </TableColumnItem>
-                    <TableColumnItem>
-                        <ScriptBlock>
-                        <![CDATA[
-                        $_.Payload.aud
                         ]]>
                         </ScriptBlock>
                     </TableColumnItem>
