@@ -103,7 +103,6 @@ Command works in on prem environment where access to internet is available via p
             #Web proxy configuration
             #Optional
         $proxy = $null
-
     )
 
     process
@@ -111,23 +110,28 @@ Command works in on prem environment where access to internet is available via p
         switch($PSCmdlet.ParameterSetName)
         {
             'ConfidentialClientWithSecret' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
+                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
                 break;
             }
             'ConfidentialClientWithCertificate' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
+                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
                 break;
             }
             'PublicClient' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
+                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
+                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
                 break;
             }
             'MSI' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($ClientId, $DefaultScopes,$proxy)
+                $script:AadLastCreatedFactory = $script:factoryType::Create($ClientId, $DefaultScopes,$proxy)
+                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($ClientId, $DefaultScopes,$proxy)
                 break;
             }
             'ResourceOwnerPasssword' {
-                $script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
+                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
+                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
                 break;
             }
         }
@@ -187,7 +191,7 @@ Command shows how to get token as hashtable containing properly formatted Author
     param
     (
         [Parameter(ValueFromPipeline)]
-        [GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
+        #[GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory,
         [Parameter()]
@@ -402,7 +406,8 @@ function Init
         {
             'Core'
             {
-                 #only load when not present
+
+<#                  #only load when not present
                 try {
                     [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
                 }
@@ -410,6 +415,13 @@ function Init
                 {
                     Add-type -Path "$PSScriptRoot\Shared\netcoreapp2.1\Microsoft.Identity.Client.dll"
                 } 
+ #>
+                #load into separate context
+                $ctx = new-object System.Runtime.Loader.AssemblyLoadContext('GreyCorbel.Identity.Authentication.AadAuthenticationFactory',$true)
+                $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll") | Out-Null
+                $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\net6.0\Microsoft.IdentityModel.Abstractions.dll") | Out-Null
+                $assembly = $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll")
+                $script:factoryType = $assembly.GetType('GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
 
                 break;
             }
@@ -426,16 +438,17 @@ function Init
                 #on desktop, this one is not pre-loaded
                 Add-Type -Assembly System.Net.Http
         
+                #for desktop, we do not use separate app domain (will add if needed)
+                try {
+                    [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
+                }
+                catch
+                {
+                    Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
+                    $script:factoryType = [GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
+                }
                 break;
             }
-        }
-
-        try {
-            [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
-        }
-        catch
-        {
-            Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
