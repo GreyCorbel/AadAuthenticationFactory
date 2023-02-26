@@ -73,8 +73,10 @@ namespace GreyCorbel.Identity.Authentication
         private readonly ManagedIdentityClientApplication _managedIdentityClientApplication;
         private readonly string _defaultClientId = "1950a258-227b-4e31-a9cf-717495945fc2";
 
+        #region Constructors
+
         /// <summary>
-        /// Creates factory that supporrts Public client flows with Interactive or DeviceCode authentication
+        /// Creates factory that supports Public client flows with Interactive, DeviceCode or WIA authentication
         /// </summary>
         /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
         /// <param name="clientId">ClientId to use. If not specified, clientId of Azure Powershell is used</param>
@@ -128,6 +130,28 @@ namespace GreyCorbel.Identity.Authentication
         }
 
         /// <summary>
+        /// Static method that creates factory for Public client flows with Interactive, DeviceCode or WIA authentication
+        /// </summary>
+        /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
+        /// <param name="clientId">ClientId to use. If not specified, clientId of Azure Powershell is used</param>
+        /// <param name="scopes">List of scopes that clients asks for</param>
+        /// <param name="loginApi">AAD endpoint that will handle the authentication.</param>
+        /// <param name="authenticationMode">Type of public client flow to use. Supported flows as Interactive, DeviceCode and WIA</param>
+        /// <param name="userNameHint">Which username to use in auth UI in case there may be multiple names available</param>
+        /// <param name="proxy">Optional configuration of proxy for internet access</param>
+        public static AadAuthenticationFactory Create(
+            string tenantId,
+            string clientId,
+            string[] scopes,
+            string loginApi = "https://login.microsoftonline.com",
+            AuthenticationMode authenticationMode = AuthenticationMode.Interactive,
+            string userNameHint = null,
+            WebProxy proxy = null)
+        {
+            return new AadAuthenticationFactory(tenantId, clientId, scopes, loginApi, authenticationMode, userNameHint, proxy);
+        }
+
+        /// <summary>
         /// Creates factory that supports Confidential client flows via MSAL with ClientSecret authentication
         /// </summary>
         /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
@@ -160,7 +184,7 @@ namespace GreyCorbel.Identity.Authentication
         }
 
         /// <summary>
-        /// Constructor for Confidential client authentication flow via MSAL and X509 certificate authentication
+        /// Creates factory for Confidential client authentication flow via MSAL and X509 certificate
         /// </summary>
         /// <param name="tenantId">Dns domain name or tenant guid</param>
         /// <param name="clientId">Client id that represents application asking for token</param>
@@ -191,6 +215,7 @@ namespace GreyCorbel.Identity.Authentication
             _confidentialClientApplication = builder.Build();
         }
 
+
         /// <summary>
         /// Creates factory that supports SystemAssignedIdentity (clientId passed is null) 
         /// or UserAssignedIdentity (clientId parameter represents user assigned identity) authentication
@@ -215,7 +240,7 @@ namespace GreyCorbel.Identity.Authentication
         }
 
         /// <summary>
-        /// Creates factory that supporrts Public client ROPC flow
+        /// Creates factory that supports Public client ROPC flow
         /// </summary>
         /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
         /// <param name="clientId">ClientId to use</param>
@@ -257,6 +282,75 @@ namespace GreyCorbel.Identity.Authentication
         }
 
 
+        #endregion
+
+        #region Static methods
+        /// <summary>
+        /// Static method that creates factory that supports SystemAssignedIdentity (clientId passed is null) 
+        /// or UserAssignedIdentity (clientId parameter represents user assigned identity) authentication
+        /// </summary>
+        /// <param name="clientId">AppId of User Assigned Identity or null (which means to use System Assigned Identity)</param>
+        /// <param name="scopes">Required scopes to obtain. Currently obtains all assigned scopes for first resource in the array.</param>
+        /// <param name="proxy">Optional configuration of proxy for internet access</param>
+        public static AadAuthenticationFactory Create(string clientId, string[] scopes, WebProxy proxy = null) => new(clientId, scopes, proxy);
+
+        /// <summary>
+        /// Creates factory that supporrts Public client ROPC flow
+        /// </summary>
+        /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
+        /// <param name="clientId">ClientId to use</param>
+        /// <param name="scopes">List of scopes that clients asks for</param>
+        /// <param name="loginApi">AAD endpoint that will handle the authentication.</param>
+        /// <param name="userName">Resource owner username</param>
+        /// <param name="password">Resource owner password</param>
+        /// <param name="proxy">Optional configuration of proxy for internet access</param>
+        public static AadAuthenticationFactory Create(
+            string tenantId,
+            string clientId,
+            string[] scopes,
+            string userName,
+            SecureString password,
+            string loginApi = "https://login.microsoftonline.com",
+            WebProxy proxy = null
+            ) => new(tenantId, clientId, scopes, userName, password, loginApi, proxy);
+
+        /// <summary>
+        /// Static method that creates factory for Confidential client authentication flow via MSAL and X509 certificate
+        /// </summary>
+        /// <param name="tenantId">Dns domain name or tenant guid</param>
+        /// <param name="clientId">Client id that represents application asking for token</param>
+        /// <param name="clientCertificate">X509 certificate with private key. Public part of certificate is expected to be registered with app registration for given client id in AAD.</param>
+        /// <param name="scopes">Scopes application asks for</param>
+        /// <param name="loginApi">AAD endpoint URL for special instance of AAD (/e.g. US Gov)</param>
+        /// <param name="proxy">Optional configuration of proxy for internet access</param>
+        public static AadAuthenticationFactory Create(
+            string tenantId,
+            string clientId,
+            X509Certificate2 clientCertificate,
+            string[] scopes,
+            string loginApi = "https://login.microsoftonline.com",
+            WebProxy proxy = null) => new(tenantId, clientId, clientCertificate, scopes, loginApi, proxy);
+
+        /// <summary>
+        /// Static method that creates factory that supports Confidential client flows via MSAL with ClientSecret authentication
+        /// </summary>
+        /// <param name="tenantId">DNS name or Id of tenant that authenticates user</param>
+        /// <param name="clientId">ClientId to use</param>
+        /// <param name="scopes">List of scopes that clients asks for</param>
+        /// <param name="loginApi">AAD endpoint that will handle the authentication.</param>
+        /// <param name="clientSecret">Client secret to be used</param>
+        /// <param name="proxy">Optional configuration of proxy for internet access</param>
+        public static AadAuthenticationFactory Create(
+            string tenantId,
+            string clientId,
+            string clientSecret,
+            string[] scopes,
+            string loginApi = "https://login.microsoftonline.com",
+            WebProxy proxy = null) => new(tenantId, clientId, clientSecret, scopes, loginApi, proxy);
+
+        #endregion
+
+        #region Authentication
         /// <summary>
         /// Returns authentication result for on-behalf-of flow
         /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
@@ -402,6 +496,7 @@ namespace GreyCorbel.Identity.Authentication
 
             throw new ArgumentException($"Unsupported authentication flow: {_flow}");
         }
+        #endregion
 
         void DebugLogging(LogLevel level, string message, bool containsPii)
         {

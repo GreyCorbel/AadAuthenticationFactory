@@ -402,14 +402,15 @@ function Init
         {
             'Core'
             {
-                #only load when not present
+                 #only load when not present
                 try {
                     [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
                 }
                 catch
                 {
                     Add-type -Path "$PSScriptRoot\Shared\netcoreapp2.1\Microsoft.Identity.Client.dll"
-                }
+                } 
+
                 break;
             }
             'Desktop'
@@ -424,20 +425,17 @@ function Init
                 }
                 #on desktop, this one is not pre-loaded
                 Add-Type -Assembly System.Net.Http
+        
                 break;
             }
         }
 
-        #load generic
         try {
             [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
         }
         catch
         {
             Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
-            #load binary module once.
-            #Use Global so it's available in other commands of this module
-            #Import-Module "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.PSInternal.dll" -Scope Global
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
