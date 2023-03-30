@@ -24,6 +24,7 @@ namespace GreyCorbel.Identity.Authentication
             else if (!string.IsNullOrEmpty(IdentityEndpoint) && !string.IsNullOrEmpty(ImdsEndpoint))
                 _tokenProvider = new ArcTokenProvider(factory, clientId);
             else
+                //no environment variables, only 169.254.169.254 (Azure IMDS) endpoint
                 _tokenProvider = new VMIdentityTokenProvider(factory, clientId);
         }
 
