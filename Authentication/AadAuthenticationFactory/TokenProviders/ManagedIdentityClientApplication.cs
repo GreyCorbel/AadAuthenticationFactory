@@ -21,8 +21,8 @@ namespace GreyCorbel.Identity.Authentication
         {
             if (!string.IsNullOrEmpty(IdentityEndpoint) && !string.IsNullOrEmpty(IdentityHeader))
                 _tokenProvider = new AppServiceTokenProvider(factory, clientId);
-            //else if (!string.IsNullOrEmpty(IdentityEndpoint) && !string.IsNullOrEmpty(ImdsEndpoint))
-            //    _specialization = ManagedIdentityClientApplicationSpecialization.Arc;
+            else if (!string.IsNullOrEmpty(IdentityEndpoint) && !string.IsNullOrEmpty(ImdsEndpoint))
+                _tokenProvider = new ArcTokenProvider(factory, clientId);
             else
                 _tokenProvider = new VMIdentityTokenProvider(factory, clientId);
         }
