@@ -1,6 +1,7 @@
 ﻿using Microsoft.Identity.Client;
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,16 +9,16 @@ namespace GreyCorbel.Identity.Authentication
 {
 #pragma warning disable CA1001 // Types that own disposable fields should be disposable
     // SemaphoreSlim only needs to be disposed when AvailableWaitHandle is called.
-    class ManagedIdentityClientApplication:TokenProvider
+    class ManagedIdentityClientApplication:TokenProviderBase
 #pragma warning restore CA1001
 
     {
         ITokenProvider _tokenProvider = null;
         Dictionary <string,AuthenticationResult> _cachedTokens = new Dictionary<string, AuthenticationResult>(StringComparer.InvariantCultureIgnoreCase);
         private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+        protected readonly int _ticketOverlapSeconds = 300;
 
         public ManagedIdentityClientApplication(IMsalHttpClientFactory factory, string clientId = null)
-        :base(factory, clientId)
         {
             if (!string.IsNullOrEmpty(IdentityEndpoint) && !string.IsNullOrEmpty(IdentityHeader))
                 _tokenProvider = new AppServiceTokenProvider(factory, clientId);
