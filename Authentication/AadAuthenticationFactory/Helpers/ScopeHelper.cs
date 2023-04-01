@@ -23,8 +23,8 @@ namespace GreyCorbel.Identity.Authentication
             if (resource.Length == 0) throw new ArgumentException("No resource provided");
             if (resource.EndsWith(defaultScope, StringComparison.Ordinal))
                 return new string[] { resource };
-
-            return new string[] { $"{resource}{defaultScope}" };
+            else
+                return new string[] { $"{resource}{defaultScope}" };
         }
     }
 }

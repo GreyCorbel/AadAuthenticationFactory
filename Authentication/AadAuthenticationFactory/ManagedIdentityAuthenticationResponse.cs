@@ -3,6 +3,9 @@
     internal class ManagedIdentityAuthenticationResponse
     {
         public string access_token { get; set; }
+        //on Arc server only
+        public string refresh_token { get; set; }
+        //not present on Arc
         public string client_id { get; set; }
         public string expires_in { get; set; }
         public string ext_expires_in { get; set; }

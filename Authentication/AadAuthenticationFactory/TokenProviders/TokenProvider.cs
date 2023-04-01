@@ -1,34 +1,64 @@
 ﻿using Microsoft.Identity.Client;
 using System;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace GreyCorbel.Identity.Authentication
 {
-    internal abstract class TokenProvider : ITokenProvider
+    internal abstract class TokenProvider : TokenProviderBase
     {
-        protected static string IdentityEndpoint => Environment.GetEnvironmentVariable("IDENTITY_ENDPOINT");
-        protected static string IdentityHeader => Environment.GetEnvironmentVariable("IDENTITY_HEADER");
-        protected static string MsiEndpoint => Environment.GetEnvironmentVariable("MSI_ENDPOINT");
-        protected static string MsiSecret => Environment.GetEnvironmentVariable("MSI_SECRET");
-        protected static string ImdsEndpoint => Environment.GetEnvironmentVariable("IMDS_ENDPOINT");
-        public static string ApiVersion => "2019-08-01";
-        protected static string SecretHeaderName => "X-IDENTITY-HEADER";
-        protected static string ClientIdHeaderName => "client_id";
 
         protected IMsalHttpClientFactory _httpClientFactory;
         protected readonly string _clientId = null;
 
-        protected readonly int _ticketOverlapSeconds = 300;
+
+        protected string _endpointAddress;
+        protected string _apiVersion;
 
         public TokenProvider(IMsalHttpClientFactory factory, string clientId = null)
         {
             _httpClientFactory = factory;
             _clientId = clientId;
         }
-        public abstract Task<AuthenticationResult> AcquireTokenForClientAsync(string[] scopes, CancellationToken cancellationToken);
+        public override async Task<AuthenticationResult> AcquireTokenForClientAsync(string[] scopes, CancellationToken cancellationToken)
+        {
+            var client = _httpClientFactory.GetHttpClient();
+            using HttpRequestMessage message = CreateRequestMessage(_endpointAddress, _apiVersion, scopes);
+
+            string rawToken = await GetRawTokenFromEndpointAsync(client, message, cancellationToken).ConfigureAwait(false);
+            var authResponse = rawToken.FromJson<ManagedIdentityAuthenticationResponse>();
+            if (authResponse != null)
+            {
+                return CreateAuthenticationResult(authResponse);
+            }
+            else
+                throw new FormatException($"Invalid authentication response received: {rawToken}");
+        }
+
+        public abstract Task<string> GetRawTokenFromEndpointAsync(HttpClient client, HttpRequestMessage request, CancellationToken cancellationToken);
+
+        protected virtual HttpRequestMessage CreateRequestMessage(string endpointAddress, string apiVersion, string[] scopes)
+        {
+            HttpRequestMessage message = new HttpRequestMessage();
+            message.Method = HttpMethod.Get;
+            StringBuilder sb = new StringBuilder(endpointAddress);
+
+            //the same for all types so far
+            sb.Append($"?api-version={Uri.EscapeDataString(apiVersion)}");
+            sb.Append($"&resource={Uri.EscapeDataString(ScopeHelper.ScopeToResource(scopes))}");
+
+            if (!string.IsNullOrEmpty(_clientId))
+            {
+                sb.Append($"&{ClientIdHeaderName}={Uri.EscapeDataString(_clientId)}");
+            }
+            message.RequestUri = new Uri(sb.ToString());
+            message.Headers.Add("Metadata", "true");
+            return message;
+        }
 
         protected AuthenticationResult CreateAuthenticationResult(ManagedIdentityAuthenticationResponse authResponse)
         {
@@ -58,6 +88,19 @@ namespace GreyCorbel.Identity.Authentication
                 null,
                 principal
                 );
+        }
+
+        protected async Task<string> ProcessEndpointResponseAsync(HttpResponseMessage response)
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                string detail = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                throw new MsalClientException(response.StatusCode.ToString(), $"{response.ReasonPhrase}: {detail}");
+            }
         }
     }
 }
