@@ -1,12 +1,9 @@
 ﻿using Microsoft.Identity.Client;
-using System;
-using System.Collections.Generic;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.TokenProviders
 {
     internal class VMIdentityTokenProvider : TokenProvider
     {

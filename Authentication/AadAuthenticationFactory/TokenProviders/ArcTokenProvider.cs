@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.TokenProviders
 {
     internal class ArcTokenProvider : TokenProvider
     {
@@ -31,10 +31,9 @@ namespace GreyCorbel.Identity.Authentication
                     {
                         Method = request.Method,
                         RequestUri = request.RequestUri,
-
                     };
                     message.Headers.Add("Metadata", "true");
-                    message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", $"{secret}");
+                    message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", secret);
                     using var tokenResponse = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
                     return await ProcessEndpointResponseAsync(response).ConfigureAwait(false);
                 }

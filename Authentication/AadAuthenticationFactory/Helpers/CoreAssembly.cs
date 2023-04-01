@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.Helpers
 {
     static class CoreAssembly
     {

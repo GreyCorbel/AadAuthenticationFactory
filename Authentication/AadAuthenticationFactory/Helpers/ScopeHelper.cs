@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.Helpers
 {
     internal static class ScopeHelper
     {

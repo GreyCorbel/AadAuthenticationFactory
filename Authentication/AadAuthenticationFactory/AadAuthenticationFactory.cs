@@ -1,10 +1,8 @@
-﻿using Microsoft.Identity.Client;
+﻿using GreyCorbel.Identity.Authentication.TokenProviders;
+using Microsoft.Identity.Client;
 using System;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -71,6 +69,9 @@ namespace GreyCorbel.Identity.Authentication
         private readonly IPublicClientApplication _publicClientApplication;
         private readonly IConfidentialClientApplication _confidentialClientApplication;
         private readonly ManagedIdentityClientApplication _managedIdentityClientApplication;
+        /// <summary>
+        /// Azure Powershell client ID
+        /// </summary>
         private readonly string _defaultClientId = "1950a258-227b-4e31-a9cf-717495945fc2";
 
         #region Constructors
@@ -217,10 +218,10 @@ namespace GreyCorbel.Identity.Authentication
 
 
         /// <summary>
-        /// Creates factory that supports SystemAssignedIdentity (clientId passed is null) 
-        /// or UserAssignedIdentity (clientId parameter represents user assigned identity) authentication
+        /// Creates factory that supports System-assigned identity or Arc-enabled server identity (clientId passed is null) 
+        /// or User-assigned identity (clientId parameter represents user assigned identity) authentication
         /// </summary>
-        /// <param name="clientId">AppId of User Assigned Identity or null (which means to use System Assigned Identity)</param>
+        /// <param name="clientId">AppId of User Assigned Identity or null (which means to use System Assigned Identity or Arc-enabled server identity)</param>
         /// <param name="scopes">Required scopes to obtain. Currently obtains all assigned scopes for first resource in the array.</param>
         /// <param name="proxy">Optional configuration of proxy for internet access</param>
         public AadAuthenticationFactory(string clientId, string[] scopes, WebProxy proxy = null)
@@ -286,10 +287,10 @@ namespace GreyCorbel.Identity.Authentication
 
         #region Static methods
         /// <summary>
-        /// Static method that creates factory that supports SystemAssignedIdentity (clientId passed is null) 
-        /// or UserAssignedIdentity (clientId parameter represents user assigned identity) authentication
+        /// Creates factory that supports System-assigned identity or Arc-enabled server identity (clientId passed is null) 
+        /// or User-assigned identity (clientId parameter represents user assigned identity) authentication
         /// </summary>
-        /// <param name="clientId">AppId of User Assigned Identity or null (which means to use System Assigned Identity)</param>
+        /// <param name="clientId">AppId of User Assigned Identity or null (which means to use System Assigned Identity or Arc-enabled server identity)</param>
         /// <param name="scopes">Required scopes to obtain. Currently obtains all assigned scopes for first resource in the array.</param>
         /// <param name="proxy">Optional configuration of proxy for internet access</param>
         public static AadAuthenticationFactory Create(string clientId, string[] scopes, WebProxy proxy = null) => new(clientId, scopes, proxy);
@@ -380,11 +381,11 @@ namespace GreyCorbel.Identity.Authentication
 
         /// <summary>
         /// Returns authentication result
-        /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to return it?
+        /// Microsoft says we should not instantiate directly - but how to achieve unified experience of caller without being able to create and return it?
         /// </summary>
         /// <param name="requiredScopes">Scopes to ask for and if different than passed to factory constructor.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response, as returned by cref="ManagedIdentityClientApplication.ApiVersion" version of endpoint</returns>
+        /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
         public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes, CancellationToken cancellationToken)
         {

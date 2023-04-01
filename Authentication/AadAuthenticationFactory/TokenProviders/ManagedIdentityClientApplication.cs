@@ -1,17 +1,16 @@
-﻿using Microsoft.Identity.Client;
+﻿using GreyCorbel.Identity.Authentication.Helpers;
+using Microsoft.Identity.Client;
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.TokenProviders
 {
 #pragma warning disable CA1001 // Types that own disposable fields should be disposable
     // SemaphoreSlim only needs to be disposed when AvailableWaitHandle is called.
-    class ManagedIdentityClientApplication:TokenProviderBase
+    internal class ManagedIdentityClientApplication:TokenProviderBase
 #pragma warning restore CA1001
-
     {
         ITokenProvider _tokenProvider = null;
         Dictionary <string,AuthenticationResult> _cachedTokens = new Dictionary<string, AuthenticationResult>(StringComparer.InvariantCultureIgnoreCase);
@@ -46,9 +45,9 @@ namespace GreyCorbel.Identity.Authentication
                 }
                 return _cachedTokens[resource];
             }
-            catch(Exception ex)
+            catch(Exception)
             {
-                throw ex;
+                throw;
             }
             finally
             {

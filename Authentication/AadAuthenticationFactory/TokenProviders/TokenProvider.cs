@@ -1,4 +1,5 @@
-﻿using Microsoft.Identity.Client;
+﻿using GreyCorbel.Identity.Authentication.Helpers;
+using Microsoft.Identity.Client;
 using System;
 using System.Net.Http;
 using System.Security.Claims;
@@ -7,14 +8,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GreyCorbel.Identity.Authentication
+namespace GreyCorbel.Identity.Authentication.TokenProviders
 {
     internal abstract class TokenProvider : TokenProviderBase
     {
-
         protected IMsalHttpClientFactory _httpClientFactory;
         protected readonly string _clientId = null;
-
 
         protected string _endpointAddress;
         protected string _apiVersion;
@@ -92,14 +91,14 @@ namespace GreyCorbel.Identity.Authentication
 
         protected async Task<string> ProcessEndpointResponseAsync(HttpResponseMessage response)
         {
+            string payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return payload;
             }
             else
             {
-                string detail = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                throw new MsalClientException(response.StatusCode.ToString(), $"{response.ReasonPhrase}: {detail}");
+                throw new MsalClientException(response.StatusCode.ToString(), $"{payload}");
             }
         }
     }

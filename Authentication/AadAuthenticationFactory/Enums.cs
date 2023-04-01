@@ -28,12 +28,33 @@
     /// </summary>
     enum AuthenticationFlow
     {
+        /// <summary>
+        /// Public client with browser based auth
+        /// </summary>
         PublicClient,
+        /// <summary>
+        /// Public client with console based auth
+        /// </summary>
         PublicClientWithDeviceCode,
+        /// <summary>
+        /// Public client with Windows Integrated auth
+        /// </summary>
         PublicClientWithWia,
+        /// <summary>
+        /// Confidential client with client secret or certificate
+        /// </summary>
         ConfidentialClient,
+        /// <summary>
+        /// Confidential client with System-assigned Managed identity or Arc-enabled server
+        /// </summary>
         ManagedIdentity,
+        /// <summary>
+        /// Confidential client with User-assigned Managed identity
+        /// </summary>
         UserAssignedIdentity,
+        /// <summary>
+        /// Unattended Resource Owner auth with username and password
+        /// </summary>
         ResourceOwnerPassword
     }
 }
