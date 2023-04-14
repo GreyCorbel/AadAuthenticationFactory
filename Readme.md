@@ -33,8 +33,25 @@ $Token.AccessToken | Test-AadToken | Select -Expand Payload
 $Token.IdToken | Test-AadToken | Select -Expand Payload
 ```
 
+## Simple usage with single factory and custom client with client secret
+Module caches most-recently created factory. Factory uses custom Client Id with client secret.
+```powershell
+$appId = '1b69b00f-08f0-4798-9976-af325f7f7526'
+$secret = 'xxxx'
+#create authnetication factory and cache it inside module
+New-AadAuthenticationFactory -TenantId mytenant.com -ClientId $appId -ClientSecret  $secret | Out-Null
+
+#ask for token
+$Token = Get-AadToken -Scopes 'https://graph.microsoft.com/.default'
+
+#examine access token data
+$Token.AccessToken | Test-AadToken | Select -Expand Payload
+#examine ID token data
+$Token.IdToken | Test-AadToken | Select -Expand Payload
+```
+
 ## Custom app and certificate auth with Confidential client
-This sample creates multiple authentication factories for getting tokens for different resources for application that uses X.509 certificate for authentication.
+This sample creates authentication factory for getting tokens for different resources for application that uses X.509 certificate for authentication.
 
 ```powershell
 #load certificate for auth
@@ -44,7 +61,7 @@ $cert = dir Cert:\CurrentUser\My\ | where-object{$_.Thumbprint -eq $thumbprint}
 
 #create factory for issuing of tokens for Graph Api and Azure KeyVault.
 #single factory can issue tokens for multiple resources/scopes
-$factory = New-AadAuthenticationfactory -tenantId mydomain.com -ClientId $appId --X509Certificate $cert -DefaultScopes 'https://graph.microsoft.com/.default'
+$factory = New-AadAuthenticationfactory -tenantId mydomain.com -ClientId $appId -X509Certificate $cert -DefaultScopes 'https://graph.microsoft.com/.default'
 
 #get tokens
 $graphToken = Get-AadToken -Factory $factory
