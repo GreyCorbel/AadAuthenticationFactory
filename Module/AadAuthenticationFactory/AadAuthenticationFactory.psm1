@@ -216,28 +216,9 @@ Command shows how to get token as hashtable containing properly formatted Author
             Write-Error "Please pass valid instance of AadAuthenticationFactory"
             return
         }
-        switch($Factory.AuthenticationMode)
-        {
-            'DeviceCode' {
-                [timespan]$timeout = [timespan]::FromSeconds(120)
-                break;
-            }
-            'Interactive' {
-                [timespan]$timeout = [timespan]::FromSeconds(60)
-                break;
-            }
-            'WIA' {
-                [timespan]$timeout = [timespan]::FromSeconds(30)
-                break;
-            }
-            default {
-                [timespan]$timeout = [timespan]::FromSeconds(10)
-                break;
-            }
-        }
 
         try {
-            [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource($timeout)
+            [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
     
             if(-not [string]::IsNullOrEmpty($UserToken))
             {
@@ -245,10 +226,11 @@ Command shows how to get token as hashtable containing properly formatted Author
             }
             else
             {
-                $task = $Factory.AuthenticateAsync($Scopes, [System.Threading.CancellationToken]::None)
+                $task = $Factory.AuthenticateAsync($Scopes, $cts.Token)
             }
 
-            $rslt = $task.GetAwaiter().GetResult()
+            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+
             if($AsHashTable)
             {
                 @{
@@ -395,6 +377,42 @@ function Base64UrlDecode
         $result
     }
 }
+
+function AwaitTask {
+    param (
+        [Parameter(ValueFromPipeline, Mandatory)]
+        $task,
+        [Parameter(Mandatory)]
+        [System.Threading.CancellationTokenSource]$CancellationTokenSource
+    )
+
+    process {
+        try {
+            $errorHappened = $false
+            while (-not $task.AsyncWaitHandle.WaitOne(200)) { }
+            $rslt = $task.GetAwaiter().GetResult()
+            $rslt
+        }
+        catch [System.OperationCanceledException]{
+            $errorHappened = $true
+            Write-Warning 'Authentication process has timed out'
+        }
+        catch {
+            $errorHappened = $true
+            throw $_.Exception
+        }
+        finally {
+            if(-not $errorHappened -and $null -eq $rslt)
+            {
+                #we do not have result and did not went thru Catch block --> likely Ctrl+Break scenario
+                #let`s cancel authentication in the factory
+                $CancellationTokenSource.Cancel()
+                Write-Verbose 'Authentication canceled by Ctrl+Break'
+            }
+        }
+    }
+}
+
 function Init
 {
     param()

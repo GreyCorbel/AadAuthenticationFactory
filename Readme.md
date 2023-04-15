@@ -1,8 +1,8 @@
 # AadAuthenticationFactory
 This module provides unified experience for getting and using tokens from Azure AD authentication platform. Experience covers this authentication scenarios:
-  - Interactive authentication with Public client flow and Delegated permissions. Uses standard MSAL implementation of Public flow with Browser based interactive authentication, or Device code authentication
-  - Non-interactive authentication with Confidential client flow and Application permissions. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate
-  - Non-Interactive authentication via Azure Managed Identity, usable on Azure VMs, Azure App Services, Azure Functions and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
+  - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based interactive authentication, or Device code authentication
+  - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate
+  - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
 
 Module comes with commands:
 
@@ -17,9 +17,11 @@ Module is usable two ways:
 - by other modules to provide instant Azure authentication services without the need to implement them - just make dependency on AadAuthenticationFactory module in other module and use it to get tokens for resources as you need. This is demonstrated by [CosmosLite module](https://github.com/jformacek/CosmosLite)
 
 # Examples
-
+Sections below provide example of various way of getting autthenticated with the module.
 ## Simple usage with single factory and default Public client
-Module caches most-recently created factory. Factory uses Client Id of Azure Powershell app provided by MS. Sample uses browser based authentication and gives Delegated permissions configured for Azure Powershell for Graph API to calling user.
+Module caches most-recently created factory. Factory uses Client Id of Azure Powershell app provided by MS. Sample uses browser based authentication and gives Delegated permissions configured for Azure Powershell for Graph API to calling user.  
+Sample demonstrates examination of resulting Access and ID tokens issued for calling of Graph API.  
+*Note*: Access tokens for Graph API fail to validate - this is by design according to MS - see discussion here: https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609
 ```powershell
 #create authnetication factory and cache it inside module
 New-AadAuthenticationFactory -TenantId mytenant.com -DefaultScopes 'https://graph.microsoft.com/.default' -AuthMode Interactive | Out-Null
