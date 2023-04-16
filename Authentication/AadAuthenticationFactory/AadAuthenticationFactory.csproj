@@ -21,8 +21,15 @@
     <PackageReference Include="Microsoft.Identity.Client" Version="4.50.0" />
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="@echo off&#xD;&#xA;set modulesFolder=..\..\Module\AadAuthenticationFactory\Shared\netstandard2.0&#xD;&#xA;if not exist &quot;%25modulesFolder%25&quot; (&#xD;&#xA;    echo Creating folder for outputs&#xD;&#xA;    md &quot;%25modulesfolder%25&quot;&#xD;&#xA;)&#xD;&#xA;echo Copying outputs to %25modulesFolder%25&#xD;&#xA;copy /Y &quot;$(TargetPath)&quot; &quot;%25modulesfolder%25&quot;&#xD;&#xA;copy /Y &quot;$(TargetDir)$(TargetName).xml&quot; &quot;%25modulesfolder%25&quot;" />
-  </Target>
+  <Target Name="CopyFiles" AfterTargets="Build">
+    <ItemGroup>
+        <Shared Include="$(TargetPath);$(TargetDir)$(TargetName).xml"/>
+    </ItemGroup>
+    <Message Text="Copying shared files to module" Importance="high" />
+    <Copy
+        SourceFiles="@(Shared)"
+        DestinationFolder="..\..\Module\AadAuthenticationFactory\Shared\netstandard2.0"
+    />
 
+  </Target>
 </Project>

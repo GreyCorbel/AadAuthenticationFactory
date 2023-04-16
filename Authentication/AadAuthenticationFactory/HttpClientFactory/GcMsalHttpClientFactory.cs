@@ -7,12 +7,12 @@ namespace GreyCorbel.Identity.Authentication
 {
     internal class GcMsalHttpClientFactory : IMsalHttpClientFactory
     {
-        static HttpClient httpClient;
+        static HttpClient _httpClient;
 
         public GcMsalHttpClientFactory(WebProxy proxy, bool useDefaultCredentials = false)
         {
 
-            if (null == httpClient)
+            if (null == _httpClient)
             {
                 var httpClientHandler = new HttpClientHandler()
                 {
@@ -24,14 +24,14 @@ namespace GreyCorbel.Identity.Authentication
                     httpClientHandler.Proxy = proxy;
                     httpClientHandler.UseProxy = true;
                 }
-                httpClient = new HttpClient(httpClientHandler);
+                _httpClient = new HttpClient(httpClientHandler);
 
-                httpClient.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AadAuthenticationFactory", CoreAssembly.Version.ToString()));
+                _httpClient.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AadAuthenticationFactory", CoreAssembly.Version.ToString()));
             }
         }
         public HttpClient GetHttpClient()
         {
-            return httpClient;
+            return _httpClient;
         }
     }
 }

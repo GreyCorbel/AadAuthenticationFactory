@@ -11,7 +11,9 @@ namespace GreyCorbel.Identity.Authentication.TokenProviders
     {
         protected static string IdentityEndpoint => Environment.GetEnvironmentVariable("IDENTITY_ENDPOINT");
         protected static string IdentityHeader => Environment.GetEnvironmentVariable("IDENTITY_HEADER");
+        //obsolete
         protected static string MsiEndpoint => Environment.GetEnvironmentVariable("MSI_ENDPOINT");
+        //obsolete
         protected static string MsiSecret => Environment.GetEnvironmentVariable("MSI_SECRET");
         protected static string ImdsEndpoint => Environment.GetEnvironmentVariable("IMDS_ENDPOINT");
         protected static string SecretHeaderName => "X-IDENTITY-HEADER";

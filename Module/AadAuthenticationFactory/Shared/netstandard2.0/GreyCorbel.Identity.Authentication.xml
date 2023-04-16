@@ -11,7 +11,7 @@
         </member>
         <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.TenantId">
             <summary>
-            Tenant Id of AAD tenant that authenticates the user / app
+            Tenant Id of AAD tenant that authenticates the user / application
             </summary>
         </member>
         <member name="P:GreyCorbel.Identity.Authentication.AadAuthenticationFactory.ClientId">

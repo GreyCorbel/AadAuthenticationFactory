@@ -16,7 +16,7 @@ namespace GreyCorbel.Identity.Authentication
     public class AadAuthenticationFactory
     {
         /// <summary>
-        /// Tenant Id of AAD tenant that authenticates the user / app
+        /// Tenant Id of AAD tenant that authenticates the user / application
         /// </summary>
         public string TenantId { get { return _tenantId; } }
         private readonly string _tenantId;
@@ -69,6 +69,8 @@ namespace GreyCorbel.Identity.Authentication
         private readonly IPublicClientApplication _publicClientApplication;
         private readonly IConfidentialClientApplication _confidentialClientApplication;
         private readonly ManagedIdentityClientApplication _managedIdentityClientApplication;
+
+        private readonly static string _loginApi_public = "https://login.microsoftonline.com";
         /// <summary>
         /// Azure Powershell client ID
         /// </summary>
@@ -90,7 +92,7 @@ namespace GreyCorbel.Identity.Authentication
             string tenantId, 
             string clientId, 
             string [] scopes, 
-            string loginApi = "https://login.microsoftonline.com", 
+            string loginApi, 
             AuthenticationMode authenticationMode = AuthenticationMode.Interactive, 
             string userNameHint = null,
             WebProxy proxy = null)
@@ -100,7 +102,11 @@ namespace GreyCorbel.Identity.Authentication
             else
                 _clientId = clientId;
 
-            _loginApi = loginApi;
+            if (string.IsNullOrWhiteSpace(loginApi))
+                _loginApi = _loginApi_public;
+            else
+                _loginApi = loginApi;
+
             _scopes = scopes;
             _userNameHint = userNameHint;
             _tenantId = tenantId;
@@ -144,7 +150,7 @@ namespace GreyCorbel.Identity.Authentication
             string tenantId,
             string clientId,
             string[] scopes,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             AuthenticationMode authenticationMode = AuthenticationMode.Interactive,
             string userNameHint = null,
             WebProxy proxy = null)
@@ -166,11 +172,15 @@ namespace GreyCorbel.Identity.Authentication
             string clientId,
             string clientSecret,
             string[] scopes,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null)
         {
-            _clientId = clientId;
-            _loginApi = loginApi;
+            //confidential client does not work with _defaultClientId
+           _clientId = clientId;
+            if (string.IsNullOrWhiteSpace(loginApi))
+                _loginApi = _loginApi_public;
+            else
+                _loginApi = loginApi;
             _scopes = scopes;
             _authMode = AuthenticationMode.Silent;
 
@@ -198,11 +208,17 @@ namespace GreyCorbel.Identity.Authentication
             string clientId,
             X509Certificate2 clientCertificate,
             string[] scopes,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null)
         {
+            //confidential client does not work with _defaultClientId
             _clientId = clientId;
-            _loginApi = loginApi;
+
+            if (string.IsNullOrWhiteSpace(loginApi))
+                _loginApi = _loginApi_public;
+            else
+                _loginApi = loginApi;
+
             _scopes = scopes;
             _authMode = AuthenticationMode.Silent;
 
@@ -256,7 +272,7 @@ namespace GreyCorbel.Identity.Authentication
             string[] scopes,
             string userName,
             SecureString password,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null
             )
         {
@@ -265,7 +281,11 @@ namespace GreyCorbel.Identity.Authentication
             else
                 _clientId = clientId;
 
-            _loginApi = loginApi;
+            if (string.IsNullOrWhiteSpace(loginApi))
+                _loginApi = _loginApi_public;
+            else
+                _loginApi = loginApi;
+
             _scopes = scopes;
             _userNameHint = userName;
             _resourceOwnerPassword = password;
@@ -311,7 +331,7 @@ namespace GreyCorbel.Identity.Authentication
             string[] scopes,
             string userName,
             SecureString password,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null
             ) => new(tenantId, clientId, scopes, userName, password, loginApi, proxy);
 
@@ -329,7 +349,7 @@ namespace GreyCorbel.Identity.Authentication
             string clientId,
             X509Certificate2 clientCertificate,
             string[] scopes,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null) => new(tenantId, clientId, clientCertificate, scopes, loginApi, proxy);
 
         /// <summary>
@@ -346,7 +366,7 @@ namespace GreyCorbel.Identity.Authentication
             string clientId,
             string clientSecret,
             string[] scopes,
-            string loginApi = "https://login.microsoftonline.com",
+            string loginApi,
             WebProxy proxy = null) => new(tenantId, clientId, clientSecret, scopes, loginApi, proxy);
 
         #endregion
@@ -419,7 +439,6 @@ namespace GreyCorbel.Identity.Authentication
                         }
                         return result;
                 }
-                //public client flow
                 case AuthenticationFlow.PublicClient:
                     {
                         var accounts = await _publicClientApplication.GetAccountsAsync();
@@ -465,7 +484,7 @@ namespace GreyCorbel.Identity.Authentication
                     }
                 case AuthenticationFlow.ConfidentialClient:
                     return await _confidentialClientApplication.AcquireTokenForClient(requiredScopes).ExecuteAsync(cancellationToken);
-                //System Managed identity
+                //System Managed identity or Arc
                 case AuthenticationFlow.ManagedIdentity:
                     return await _managedIdentityClientApplication.AcquireTokenForClientAsync(requiredScopes, cancellationToken);
                 //User managed identity
@@ -488,7 +507,8 @@ namespace GreyCorbel.Identity.Authentication
                     }
                     catch (MsalUiRequiredException)
                     {
-                        result = await _publicClientApplication.AcquireTokenByUsernamePassword(requiredScopes, _userNameHint, _resourceOwnerPassword)
+                        result = await _publicClientApplication.AcquireTokenByUsernamePassword(
+                            requiredScopes, _userNameHint, _resourceOwnerPassword.ToPlainText())
                                 .ExecuteAsync(cancellationToken);
                     }
                     return result;
