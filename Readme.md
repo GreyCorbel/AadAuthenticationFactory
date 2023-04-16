@@ -86,7 +86,8 @@ $configToken = Get-AadToken -Scopes 'https://azconfig.io'
 $vaultToken =  Get-AadToken -Scopes 'https://vault.azure.net'
 ```
 ## User assigned Managed identity
-This sample assumes that code runs in environment supporting Azure Managed identity and uses it to get tokens.
+This sample assumes that code runs in environment supporting Azure Managed identity and uses it to get tokens, and shows access token properties.  
+`Get-AadToken` uses implicit authentication factory cached by most recent call of `New-AadAuthenticationFactory`.
 ```powershell
 #create a factory with default scopes
 New-AadAuthenticationfactory -DefaultScopes 'https://azconfig.io/.default' -UseManagedIdentity -ClientId '3a174b1e-7b2a-4f21-a326-90365ff741cf'
@@ -95,12 +96,12 @@ Get-AadToken | Select-object -expandProperty AccessToken | Test-AadToken | selec
 ```
 
 ## Resource Owner Password Credential flow
-This sample uses ROPC to get token to access Graph API
+This sample uses ROPC to get token to access Azure Key Vault. `Get-AadToken` uses implicit authentication factory cached by most recent call of `New-AadAuthenticationFactory`.
 
 ```powershell
 $creds = Get-Credential
-$graphFactory = New-AadAuthenticationFactory -TenantId 'mytenant.com' -ClientId $graphApiClientId -ResourceOwnerCredential $creds -RequiredScopes 'https://graph.microsoft.com/.default'
-$graphToken = Get-AadToken -Factory $graphFactory
+New-AadAuthenticationFactory -TenantId 'mytenant.com' -ClientId $graphApiClientId -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default' | Out-Null
+$Token = Get-AadToken
 
 ```
 ## On-Behalf-Of flow

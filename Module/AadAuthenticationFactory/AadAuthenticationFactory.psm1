@@ -28,6 +28,15 @@ Description
 -----------
 Command works in on prem environment where access to internet is available via proxy. Command authenticates user with device code flow.
 
+.EXAMPLE
+$creds = Get-Credential
+New-AadAuthenticationFactory -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
+$vaultToken = Get-AadToken
+
+Description
+-----------
+Command collects credentials of cloud-only account and authenticates with Resource Owner Password flow to get access token for Azure KeyVault.
+Get-AadToken command uses implicit factory cached from last call of New-AadAuthenticationFactory
 #>
 
     param
