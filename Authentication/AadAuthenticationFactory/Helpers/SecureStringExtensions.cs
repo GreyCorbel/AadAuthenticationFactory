@@ -10,7 +10,6 @@ internal static class SecureStringExtensions
         if (secureString == null)
             return null;
 
-        var buffer = new char[secureString.Length];
         StringBuilder sb = new StringBuilder();
         IntPtr secureStringPtr = Marshal.SecureStringToCoTaskMemUnicode(secureString);
         for (int i = 0; i < secureString.Length; i++)
