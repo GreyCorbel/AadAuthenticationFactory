@@ -19,5 +19,12 @@ namespace GreyCorbel.Identity.Authentication.TokenProviders
             using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
             return await ProcessEndpointResponseAsync(response).ConfigureAwait(false);
         }
+
+        protected override HttpRequestMessage CreateRequestMessage(string endpointAddress, string apiVersion, string[] scopes)
+        {
+            var message = base.CreateRequestMessage(endpointAddress, apiVersion, scopes);
+            message.Headers.Add("X-IDENTITY-HEADER", IdentityHeader);
+            return message;
+        }
     }
 }
