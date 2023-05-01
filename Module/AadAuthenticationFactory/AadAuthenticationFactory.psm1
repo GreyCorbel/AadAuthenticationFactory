@@ -467,13 +467,14 @@ function Init
         
                 #for desktop, we do not use separate app domain (will add if needed)
                 try {
+                    #check if we need to load or already loaded
                     [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
                 }
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
-                    $script:factoryType = [GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
                 }
+                $script:factoryType = [GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
                 break;
             }
         }
