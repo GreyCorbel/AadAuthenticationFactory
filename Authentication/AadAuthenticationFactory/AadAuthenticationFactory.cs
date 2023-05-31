@@ -30,7 +30,7 @@ namespace GreyCorbel.Identity.Authentication
         /// <summary>
         /// AAD authorization endpoint. Defaults to public AAD
         /// </summary>
-        public string LoginApi {get {return _loginApi;}}
+        public string LoginApi => _loginApi;
         private readonly string _loginApi;
 
         /// <summary>
@@ -182,6 +182,8 @@ namespace GreyCorbel.Identity.Authentication
             else
                 _loginApi = loginApi;
             _scopes = scopes;
+            _tenantId = tenantId;
+
             _authMode = AuthenticationMode.Silent;
 
             _flow = AuthenticationFlow.ConfidentialClient;
@@ -220,6 +222,8 @@ namespace GreyCorbel.Identity.Authentication
                 _loginApi = loginApi;
 
             _scopes = scopes;
+            _tenantId = tenantId;
+
             _authMode = AuthenticationMode.Silent;
 
             _flow = AuthenticationFlow.ConfidentialClient;
@@ -499,7 +503,6 @@ namespace GreyCorbel.Identity.Authentication
                         account = accounts.FirstOrDefault();
                     else
                         account = accounts.Where(x => string.Compare(x.Username, _userNameHint, true) == 0).FirstOrDefault();
-
                     try
                     {
                         result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
