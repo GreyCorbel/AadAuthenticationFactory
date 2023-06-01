@@ -409,9 +409,10 @@ namespace GreyCorbel.Identity.Authentication
         /// </summary>
         /// <param name="requiredScopes">Scopes to ask for and if different than passed to factory constructor.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
+        /// <param name="forceRefresh">For Public client flow, setting this parameter to true causes reathentication of user. Ignored for other flows.</param>
         /// <returns cref="AuthenticationResult">Authentication result object either returned fropm MSAL libraries, or - for ManagedIdentity - constructed from Managed Identity endpoint response</returns>
         /// <exception cref="ArgumentException">Throws if unsupported authentication mode or flow detected</exception>
-        public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes, CancellationToken cancellationToken)
+        public async Task<AuthenticationResult> AuthenticateAsync(string[] requiredScopes, CancellationToken cancellationToken, bool forceRefresh=false)
         {
             AuthenticationResult result;
             if (null == requiredScopes)
@@ -432,8 +433,8 @@ namespace GreyCorbel.Identity.Authentication
                             account = accounts.Where(x => string.Compare(x.Username, _userNameHint, true) == 0).FirstOrDefault();
                         if (null!=account)
                         {
-                            result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
-                                .ExecuteAsync();
+                                result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
+                                    .ExecuteAsync();
                         }
                         else
                         {
@@ -453,8 +454,13 @@ namespace GreyCorbel.Identity.Authentication
                             account = accounts.Where(x => string.Compare(x.Username, _userNameHint, true) == 0).FirstOrDefault();
                         try
                         {
-                            result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
-                                              .ExecuteAsync(cancellationToken);
+                            if(forceRefresh)
+                                result = await _publicClientApplication.AcquireTokenInteractive(requiredScopes)
+                                    .WithPrompt(Prompt.ForceLogin)
+                                    .ExecuteAsync();
+                            else
+                                result = await _publicClientApplication.AcquireTokenSilent(requiredScopes, account)
+                                                .ExecuteAsync(cancellationToken);
                         }
                         catch (MsalUiRequiredException)
                         {

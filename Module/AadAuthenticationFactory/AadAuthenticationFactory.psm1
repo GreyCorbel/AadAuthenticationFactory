@@ -215,7 +215,11 @@ Command shows how to get token as hashtable containing properly formatted Author
             #When specified, hashtable with Authorization header is returned instead of token
             #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
             #When not specified, returns authentication result with tokens and other metadata
-        [switch]$AsHashTable
+        [switch]$AsHashTable,
+            #For Public client with Interactive or DeviceCode flows, forces reauthentication of user.
+            #Ignored by other flows
+            #Might be useful when user roles or group membershhip changes to get fresh new token containing changged roles/groups
+            [switch]$ForceAuthentication
     )
 
     process
@@ -235,7 +239,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             }
             else
             {
-                $task = $Factory.AuthenticateAsync($Scopes, $cts.Token)
+                $task = $Factory.AuthenticateAsync($Scopes, $cts.Token, $ForceAuthentication)
             }
 
             $rslt = $task | AwaitTask -CancellationTokenSource $cts
