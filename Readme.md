@@ -33,6 +33,13 @@ $Token = Get-AadToken
 $Token.AccessToken | Test-AadToken | Select -Expand Payload
 #examine ID token data
 $Token.IdToken | Test-AadToken | Select -Expand Payload
+
+#ask for token to different resource using authentication provided before
+$Token2 = Get-AadToken -Scopes https://vault.azure.net/.default
+
+#ask for fresh token with reauthentication of user
+$Token = Get-AadToken -ForceAuthentication
+
 ```
 
 ## Simple usage with single factory and custom client with client secret
