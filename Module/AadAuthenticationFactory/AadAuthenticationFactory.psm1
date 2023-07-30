@@ -178,9 +178,23 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 }
                 break;
             }
+            'MSI' {
+                if($clientId -eq $ModuleManifest.PrivateData.Configuration.DefaultClientId)
+                {
+                    $managedIdentityId = [Microsoft.Identity.Client.AppConfig.ManagedIdentityId]::SystemAssigned
+                    $flowType = [AuthenticationFlow]::ManagedIdentity
+                }
+                else
+                {
+                    $managedIdentityId = [Microsoft.Identity.Client.AppConfig.ManagedIdentityId]::WithUserAssignedClientId($clientId)
+                    $flowType = [AuthenticationFlow]::UserAssignedIdentity
+                }
+                $builder = [Microsoft.Identity.Client.ManagedIdentityApplicationBuilder]::Create($managedIdentityId)
+               
+                break;
+            }
             default {
-                #for MSI, opts not used
-                $opts = $null
+                throw (new-object System.ArgumentException("Unsupported flow type: $_"))
             }
         }
         #crate factory and add to builder
