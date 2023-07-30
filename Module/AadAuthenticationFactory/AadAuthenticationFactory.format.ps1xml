@@ -55,20 +55,20 @@
         <View>
         <Name>AuthenticationFactory</Name>
         <ViewSelectedBy>
-            <TypeName>GreyCorbel.Identity.Authentication.AadAuthenticationFactory</TypeName>
+            <TypeName>AadAuthenticationFactory</TypeName>
         </ViewSelectedBy>
         <TableControl>
             <TableRowEntries>
             <TableRowEntry>
                 <TableColumnItems>
                     <TableColumnItem>
-                        <PropertyName>TenantId</PropertyName>
+                        <PropertyName>Authority</PropertyName>
                     </TableColumnItem>
                     <TableColumnItem>
                         <PropertyName>ClientId</PropertyName>
                     </TableColumnItem>
                     <TableColumnItem>
-                        <PropertyName>DefaultScopes</PropertyName>
+                        <PropertyName>FlowType</PropertyName>
                     </TableColumnItem>
                 </TableColumnItems>
             </TableRowEntry>

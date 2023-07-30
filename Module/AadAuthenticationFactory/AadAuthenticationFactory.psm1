@@ -53,6 +53,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(Mandatory,ParameterSetName = 'ResourceOwnerPasssword')]
         [string]
             #Id of tenant where to autenticate the user. Can be tenant id, or any registerd DNS domain
+            #You can also use AAD placeholder: organizations, common, consumers
         $TenantId,
 
         [Parameter()]
@@ -69,8 +70,8 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
 
         [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
         [pscredential]
-            #Resource Owner username and password
-            #Used to get access as user
+            #Resource Owner username and password for public client ROPC flow
+            #Used to get access as user specified by credential
             #Note: Does not work for federated authentication
         $ResourceOwnerCredential,
 
@@ -84,10 +85,11 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
         [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
+        [ValidateSet('AzurePublic', 'AzureGermany', 'AzureChina','AzureUsGovernment','None')]
         [string]
             #AAD auth endpoint
             #Default: endpoint for public cloud
-        $LoginApi = 'https://login.microsoftonline.com',
+        $AzureCloudInstance = 'AzurePublic',
         
         [Parameter(Mandatory, ParameterSetName = 'PublicClient')]
         [ValidateSet('Interactive', 'DeviceCode', 'WIA')]
@@ -97,10 +99,11 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         $AuthMode,
         
         [Parameter(ParameterSetName = 'PublicClient')]
+        [Alias("UserNameHint")]
         [string]
             #Username hint for authentication UI
             #Optional
-        $UserNameHint,
+        $DefaultUserName,
 
         [Parameter(ParameterSetName = 'MSI')]
         [Switch]
@@ -116,35 +119,84 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
 
     process
     {
+        $ModuleManifest = Import-PowershellDataFile $PSCommandPath.Replace('.psm1', '.psd1')
+        $moduleName = [system.io.path]::GetFileNameWithoutExtension($PSCommandPath)
+        $moduleVersion = $moduleManifest.ModuleVersion
+        $useDefaultCredentials = $false
+        if([string]::IsNullOrWhiteSpace($clientId)) {$clientId = $ModuleManifest.PrivateData.Configuration.DefaultClientId}
+
+        #setup of common options
         switch($PSCmdlet.ParameterSetName)
         {
-            'ConfidentialClientWithSecret' {
-                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
-                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $clientSecret, $DefaultScopes, $LoginApi,$proxy)
+            {$_ -in 'ConfidentialClientWithSecret','ConfidentialClientWithCertificate'} {
+                $opts = new-object Microsoft.Identity.Client.ConfidentialClientApplicationOptions
+                $opts.ClientId = $clientId
+                $opts.clientName = $moduleName
+                $opts.ClientVersion = $moduleVersion
+                $opts.AzureCloudInstance = $AzureCloudInstance
+                $opts.TenantId = $tenantId
+
+                $builder = [Microsoft.Identity.Client.ConfidentialClientApplicationBuilder]::CreateWithApplicationOptions($opts)
+                $builder = $builder.WithClientSecret($ClientSecret)
+
+                $flowType = [AuthenticationFlow]::ConfidentialClient
+
                 break;
             }
-            'ConfidentialClientWithCertificate' {
-                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
-                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $X509Certificate, $DefaultScopes, $LoginApi,$proxy)
+            {$_ -in 'PublicClient','ResourceOwnerPasssword'} {
+                $opts = new-object Microsoft.Identity.Client.PublicClientApplicationOptions
+                $opts.ClientId = $clientId
+                $opts.clientName = $moduleName
+                $opts.ClientVersion = $moduleVersion
+                $opts.AzureCloudInstance = $AzureCloudInstance
+                $opts.TenantId = $tenantId
+
+                $builder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::CreateWithApplicationOptions($opts)
+                $builder = $builder.WithDefaultRedirectUri()
+
+                if($_ -eq 'ResourceOwnerPasssword')
+                {
+                    $flowType = [AuthenticationFlow]::ResourceOwnerPassword
+                }
+                else
+                {
+                    switch ($AuthMode) {
+                        'WIA' { 
+                            $flowType = [AuthenticationFlow]::PublicClientWithWia
+                            $useDefaultCredentials = $true
+                            break 
+                        }
+                        'DeviceCode' { 
+                            $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
+                            break
+                        }
+                        Default {
+                            $flowType = [AuthenticationFlow]::PublicClient
+                            break
+                        }
+                    }
+                }
                 break;
             }
-            'PublicClient' {
-                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
-                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $LoginApi, $AuthMode, $UserNameHint,$proxy)
-                break;
-            }
-            'MSI' {
-                $script:AadLastCreatedFactory = $script:factoryType::Create($ClientId, $DefaultScopes,$proxy)
-                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($ClientId, $DefaultScopes,$proxy)
-                break;
-            }
-            'ResourceOwnerPasssword' {
-                $script:AadLastCreatedFactory = $script:factoryType::Create($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
-                #$script:AadLastCreatedFactory = new-object GreyCorbel.Identity.Authentication.AadAuthenticationFactory($tenantId, $ClientId, $DefaultScopes, $ResourceOwnerCredential.UserName, $ResourceOwnerCredential.Password, $LoginApi,$proxy)
-                break;
+            default {
+                #for MSI, opts not used
+                $opts = $null
             }
         }
-        $script:AadLastCreatedFactory
+        #crate factory and add to builder
+        $httpFactory = [GcMsalHttpClientFactory]::Create($proxy,$moduleManifest.ModuleVersion,$useDefaultCredentials)
+        $builder = $builder.WithHttpClientFactory($httpFactory)
+
+        #build the app and add processing info
+        $script:AadLastCreatedFactory = $builder.Build() `
+        | Add-Member -MemberType NoteProperty -Name FlowType -Value $flowType -PassThru `
+        | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
+        | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
+        | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru
+
+        #Give the factory common type name for formatting
+        $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'AadAuthenticationFactory')
+        $script:AadLastCreatedFactory 
     }
 }
 
@@ -209,6 +261,9 @@ Command shows how to get token as hashtable containing properly formatted Author
             #If not specified, returns token with default scopes provided when creating the factory
         [string[]]$Scopes = $null,
         [Parameter()]
+            #User name hint for authentication process
+        [string]$UserName = $null,
+        [Parameter()]
             #Access token for user
             #Used to identify user in on-behalf-of flows
         [string]$UserToken,
@@ -216,33 +271,142 @@ Command shows how to get token as hashtable containing properly formatted Author
             #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
             #When not specified, returns authentication result with tokens and other metadata
         [switch]$AsHashTable,
-            #For Public client with Interactive or DeviceCode flows, forces reauthentication of user.
-            #Ignored by other flows
-            #Might be useful when user roles or group membershhip changes to get fresh new token containing changged roles/groups
-            [switch]$ForceAuthentication
+            #Asks runtime to avoid token cache and get fresh token from AAD
+            [switch]$forceRefresh
     )
 
     process
     {
         if($null -eq $Factory)
         {
-            Write-Error "Please pass valid instance of AadAuthenticationFactory"
+            Write-Error "Please pass valid instance of AAD Authentication Factory"
             return
+        }
+
+        if($null -eq $Scopes)
+        {
+            $scopes = $factory.DefaultScopes
+            if($null -eq $Scopes)
+            {
+                throw (new-object System.ArgumentException("No scopes scecified"))
+            }
+        }
+
+        if([string]::IsNullOrWhiteSpace($UserName))
+        {
+            $UserName = $factory.DefaultUserName
         }
 
         try {
             [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-    
+            
             if(-not [string]::IsNullOrEmpty($UserToken))
             {
-                $task = $Factory.AuthenticateAsync($UserToken, $Scopes, $cts.Token)
+                if($Factory.FlowType -ne [AuthenticationFlow]::ConfidentialClient)
+                {
+                    throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
+                }
+                $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
+                $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
             }
             else
             {
-                $task = $Factory.AuthenticateAsync($Scopes, $cts.Token, $ForceAuthentication)
+                if($factory.FlowType -in [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient)
+                {
+                    $accounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
+                    if($null -ne $accounts -and -not [string]::IsNullOrWhiteSpace($Username))
+                    {
+                        $account = $accounts | Where-Object{$_.UserName -eq $Username}
+                    }
+                    else {$account = $null}
+                }
+                switch($Factory.FlowType)
+                {
+                    ([AuthenticationFlow]::PublicClient) {
+                        try
+                        {
+                            $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                        {
+                            $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        break;
+                    }
+                    ([AuthenticationFlow]::PublicClientWithWia) {
+                        if($null -ne $Account)
+                        {
+                            $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        else
+                        {
+                            $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                            #let the app throw to caller when UI required as the purpose here is to stay silent
+                        }
+                        break;
+                    }
+                    ([AuthenticationFlow]::PublicClientWithDeviceCode) {
+                        try
+                        {
+                            $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                        {
+                            $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        break;
+                    }
+                    ([AuthenticationFlow]::ResourceOwnerPassword) {
+                        try
+                        {
+                            $creds = $factory.ResourceOwnerCredential
+                            if($forceRefresh)
+                            {
+                                $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                                $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                            }
+                            else
+                            {
+                                $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
+                                $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                            }
+                        }
+                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                        {
+                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        break;
+                    }
+                    ([AuthenticationFlow]::ConfidentialClient) {
+
+                        $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        break
+                    }
+                   ([AuthenticationFlow]::ManagedIdentity) {
+                        $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        break
+                    }
+                    ([AuthenticationFlow]::UserAssignedIdentity) {
+                        $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        break
+                    }
+                    default {
+                        throw (new-object System.ArgumentException("Unsupported authentication flow: $_"))
+                    }
+                }
             }
 
-            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+            
 
             if($AsHashTable)
             {
@@ -262,7 +426,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             }
         }
     }
- }
+}
 
 function Test-AadToken
 {
@@ -291,8 +455,9 @@ Command creates authentication factory, asks it to issue token for EventGrid and
 [CmdletBinding()]
     param (
         [Parameter(Mandatory,ValueFromPipeline)]
-        [string]
+        [object]
         #IdToken or AccessToken field from token returned by Get-AadToken
+        #or complete result of Get-AadToken - in such case, AccessToken is examined
         $Token,
         [switch]
         $PayloadOnly
@@ -300,6 +465,10 @@ Command creates authentication factory, asks it to issue token for EventGrid and
 
     process
     {
+        if($token -is [Microsoft.Identity.Client.AuthenticationResult])
+        {
+            $Token = $Token.AccessToken
+        }
         $parts = $token.split('.')
         if($parts.Length -ne 3)
         {
@@ -426,66 +595,145 @@ function AwaitTask {
     }
 }
 
+
 function Init
 {
     param()
 
     process
     {
+        $httpFactoryDefinition = @'
+        using Microsoft.Identity.Client;
+        using System.Net;
+        using System.Net.Http;
+
+        public class GcMsalHttpClientFactory : Microsoft.Identity.Client.IMsalHttpClientFactory
+        {
+            static HttpClient _httpClient;
+
+            protected GcMsalHttpClientFactory(WebProxy proxy, string productVersion, bool useDefaultCredentials = false)
+            {
+                if (null == _httpClient)
+                {
+                    var httpClientHandler = new HttpClientHandler()
+                    {
+                        UseDefaultCredentials = useDefaultCredentials
+                    };
+
+                    if (null != proxy)
+                    {
+                        httpClientHandler.Proxy = proxy;
+                        httpClientHandler.UseProxy = true;
+                    }
+                    _httpClient = new HttpClient(httpClientHandler);
+
+                    _httpClient.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AadAuthenticationFactory", productVersion));
+                }
+            }
+
+            public HttpClient GetHttpClient()
+            {
+                return _httpClient;
+            }
+
+            //PS5 has trouble to get interface from object instance
+            public static Microsoft.Identity.Client.IMsalHttpClientFactory Create(WebProxy proxy, string productVersion, bool useDefaultCredentials = false)
+            {
+                return new GcMsalHttpClientFactory(proxy, productVersion,useDefaultCredentials);
+            }
+        }
+'@
+
+        $deviceCodeHandlerDefinition = @'
+        public class DeviceCodeHandler
+        {
+            static System.Threading.Tasks.Task _Delegate(Microsoft.Identity.Client.DeviceCodeResult deviceCodeResult)
+            {
+                System.Console.WriteLine(deviceCodeResult.Message);
+                return System.Threading.Tasks.Task.FromResult(0);
+            }
+
+            //PS5 has trouble to get correct type when returning static method directly
+            public static System.Func<Microsoft.Identity.Client.DeviceCodeResult,System.Threading.Tasks.Task> Get()
+            {
+                return _Delegate;
+            }
+        }
+'@
+        $referencedAssemblies = @('System.Net.Http')
         #load platform specific
         switch($PSEdition)
         {
             'Core'
             {
+                $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+                $referencedAssemblies+="$PSHome\System.Net.Primitives.dll"
+                $referencedAssemblies+="System.Net.WebProxy"
+                $referencedAssemblies+="System.Console"
 
-<#                  #only load when not present
                 try {
                     [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
                 }
                 catch
                 {
-                    Add-type -Path "$PSScriptRoot\Shared\netcoreapp2.1\Microsoft.Identity.Client.dll"
-                } 
- #>
-                #load into separate context
-                $ctx = new-object System.Runtime.Loader.AssemblyLoadContext('GreyCorbel.Identity.Authentication.AadAuthenticationFactory',$true)
-                $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll") | Out-Null
-                $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\net6.0\Microsoft.IdentityModel.Abstractions.dll") | Out-Null
-                $assembly = $ctx.LoadFromAssemblyPath("$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll")
-                $script:factoryType = $assembly.GetType('GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
+                    Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.IdentityModel.Abstractions.dll"
+                    Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+                }
 
                 break;
             }
             'Desktop'
             {
+                $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 #only load when not present
                 try {
                     [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
                 }
                 catch
                 {
+                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.IdentityModel.Abstractions.dll"
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 }
                 #on desktop, this one is not pre-loaded
                 Add-Type -Assembly System.Net.Http
         
                 #for desktop, we do not use separate app domain (will add if needed)
-                try {
-                    #check if we need to load or already loaded
-                    [GreyCorbel.Identity.Authentication.AadAuthenticationFactory] | Out-Null
-                }
-                catch
-                {
-                    Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll"
-                }
-                $script:factoryType = [GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
                 break;
             }
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        #check if we need to load or already loaded
+        if($null -eq ('GcMsalHttpClientFactory' -as [type])) {
+            Add-Type -TypeDefinition $httpFactoryDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+        }
+        if($null -eq ('DeviceCodeHandler' -as [type])) {
+            #check if we need to load or already loaded
+            Add-Type -TypeDefinition $deviceCodeHandlerDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings        
+        }
     }
+
 }
+
+
+enum AuthenticationFlow
+{
+    #Public client with browser based auth
+    PublicClient
+    #Public client with console based auth
+    PublicClientWithDeviceCode
+    #Public client with Windows Integrated auth
+    PublicClientWithWia
+    #Confidential client with client secret or certificate
+    ConfidentialClient
+    #Confidential client with System-assigned Managed identity or Arc-enabled server
+    ManagedIdentity
+    #Confidential client with User-assigned Managed identity
+    UserAssignedIdentity
+    #Unattended Resource Owner auth with username and password
+    ResourceOwnerPassword
+}
+
 #endregion
 
 Init

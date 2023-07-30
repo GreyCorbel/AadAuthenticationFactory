@@ -21,15 +21,6 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       uses: actions/checkout@v3
 
-    - name: Build binaries
-      shell: pwsh
-      run: | 
-        Push-Location "$env:GITHUB_WORKSPACE\Authentication"
-        dotnet restore
-        dotnet build --configuration Release
-        dotnet test
-        Pop-Location
-    
     - name: Build Module
       shell: pwsh
       run: |
@@ -54,15 +45,6 @@ jobs:
               -HashAlgorithm SHA256 `
               -Certificate $certificate `
               -TimestampServer http://timestamp.digicert.com  `
-          | Select-Object Path,Status `
-          | Format-List
-          
-          #sign our own binaries
-          Set-AuthenticodeSignature `
-            -HashAlgorithm SHA256 `
-            -Certificate $certificate `
-            -TimestampServer http://timestamp.digicert.com `
-            -FilePath "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\Shared\netstandard2.0\GreyCorbel.Identity.Authentication.dll" `
           | Select-Object Path,Status `
           | Format-List
           

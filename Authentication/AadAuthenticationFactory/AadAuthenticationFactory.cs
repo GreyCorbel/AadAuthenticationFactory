@@ -1,5 +1,6 @@
 ﻿using GreyCorbel.Identity.Authentication.TokenProviders;
 using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.AppConfig;
 using System;
 using System.Linq;
 using System.Net;
@@ -69,6 +70,7 @@ namespace GreyCorbel.Identity.Authentication
         private readonly IPublicClientApplication _publicClientApplication;
         private readonly IConfidentialClientApplication _confidentialClientApplication;
         private readonly ManagedIdentityClientApplication _managedIdentityClientApplication;
+        private readonly IManagedIdentityApplication _managedIdentityApplication;
 
         private readonly static string _loginApi_public = "https://login.microsoftonline.com";
         /// <summary>
@@ -258,6 +260,7 @@ namespace GreyCorbel.Identity.Authentication
             _managedIdentityClientApplication = new ManagedIdentityClientApplication(new GcMsalHttpClientFactory(proxy), _clientId);
             _flow = AuthenticationFlow.UserAssignedIdentity;
             _authMode = AuthenticationMode.Silent;
+
         }
 
         /// <summary>
