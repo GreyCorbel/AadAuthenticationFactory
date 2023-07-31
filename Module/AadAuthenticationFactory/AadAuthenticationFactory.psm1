@@ -265,10 +265,6 @@ Command shows how to get token as hashtable containing properly formatted Author
     [CmdletBinding()]
     param
     (
-        [Parameter(ValueFromPipeline)]
-        #[GreyCorbel.Identity.Authentication.AadAuthenticationFactory]
-            #AAD authentication factory created via New-AadAuthenticationFactory
-        $Factory = $script:AadLastCreatedFactory,
         [Parameter()]
         [Alias("RequiredScopes")]
             #Scopes to be returned in the token.
@@ -276,7 +272,7 @@ Command shows how to get token as hashtable containing properly formatted Author
         [string[]]$Scopes = $null,
         [Parameter()]
             #User name hint for authentication process
-        [string]$UserName = $null,
+        [string]$UserName,
         [Parameter()]
             #Access token for user
             #Used to identify user in on-behalf-of flows
@@ -286,9 +282,16 @@ Command shows how to get token as hashtable containing properly formatted Author
             #When not specified, returns authentication result with tokens and other metadata
         [switch]$AsHashTable,
             #Asks runtime to avoid token cache and get fresh token from AAD
-            [switch]$forceRefresh
+            [switch]$forceRefresh,
+        [Parameter(ValueFromPipeline)]
+            #AAD authentication factory created via New-AadAuthenticationFactory
+        $Factory = $script:AadLastCreatedFactory
     )
 
+    begin
+    {
+        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
+    }
     process
     {
         if($null -eq $Factory)
@@ -311,133 +314,120 @@ Command shows how to get token as hashtable containing properly formatted Author
             $UserName = $factory.DefaultUserName
         }
 
-        try {
-            [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-            
-            if(-not [string]::IsNullOrEmpty($UserToken))
+        if(-not [string]::IsNullOrEmpty($UserToken))
+        {
+            if($Factory.FlowType -ne [AuthenticationFlow]::ConfidentialClient)
             {
-                if($Factory.FlowType -ne [AuthenticationFlow]::ConfidentialClient)
-                {
-                    throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
-                }
-                $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
-                $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
+                throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
             }
-            else
+            $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
+            $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
+        }
+        else
+        {
+            $account = Get-AadAccount -UserName $UserName -Factory $Factory
+            switch($Factory.FlowType)
             {
-                if($factory.FlowType -in [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient)
-                {
-                    $accounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
-                    if($null -ne $accounts -and -not [string]::IsNullOrWhiteSpace($Username))
+                ([AuthenticationFlow]::PublicClient) {
+                    try
                     {
-                        $account = $accounts | Where-Object{$_.UserName -eq $Username}
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
-                    else {$account = $null}
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
                 }
-                switch($Factory.FlowType)
-                {
-                    ([AuthenticationFlow]::PublicClient) {
-                        try
-                        {
-                            $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                        {
-                            $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        break;
+                ([AuthenticationFlow]::PublicClientWithWia) {
+                    if($null -ne $Account)
+                    {
+                        $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
-                    ([AuthenticationFlow]::PublicClientWithWia) {
-                        if($null -ne $Account)
-                        {
-                            $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        else
-                        {
-                            $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                            #let the app throw to caller when UI required as the purpose here is to stay silent
-                        }
-                        break;
+                    else
+                    {
+                        $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        #let the app throw to caller when UI required as the purpose here is to stay silent
                     }
-                    ([AuthenticationFlow]::PublicClientWithDeviceCode) {
-                        try
-                        {
-                            $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                        {
-                            $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        break;
+                    break;
+                }
+                ([AuthenticationFlow]::PublicClientWithDeviceCode) {
+                    try
+                    {
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
-                    ([AuthenticationFlow]::ResourceOwnerPassword) {
-                        try
-                        {
-                            $creds = $factory.ResourceOwnerCredential
-                            if($forceRefresh)
-                            {
-                                $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
-                                $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                            }
-                            else
-                            {
-                                $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
-                                $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                            }
-                        }
-                        catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::ResourceOwnerPassword) {
+                    try
+                    {
+                        $creds = $factory.ResourceOwnerCredential
+                        if($forceRefresh)
                         {
                             $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
-                        break;
+                        else
+                        {
+                            $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
                     }
-                    ([AuthenticationFlow]::ConfidentialClient) {
-
-                        $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        break
                     }
-                   ([AuthenticationFlow]::ManagedIdentity) {
-                        $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        break
-                    }
-                    ([AuthenticationFlow]::UserAssignedIdentity) {
-                        $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        break
-                    }
-                    default {
-                        throw (new-object System.ArgumentException("Unsupported authentication flow: $_"))
-                    }
+                    break;
                 }
-            }
+                ([AuthenticationFlow]::ConfidentialClient) {
 
-            
-
-            if($AsHashTable)
-            {
-                @{
-                    'Authorization' = $rslt.CreateAuthorizationHeader()
+                    $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
                 }
-            }
-            else
-            {
-                $rslt
+                ([AuthenticationFlow]::ManagedIdentity) {
+                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
+                }
+                ([AuthenticationFlow]::UserAssignedIdentity) {
+                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
+                }
+                default {
+                    throw (new-object System.ArgumentException("Unsupported authentication flow: $_"))
+                }
             }
         }
-        finally {
-            if($null -ne $cts)
-            {
-                $cts.Dispose()
+
+        if($AsHashTable)
+        {
+            @{
+                'Authorization' = $rslt.CreateAuthorizationHeader()
             }
+        }
+        else
+        {
+            $rslt
+        }
+    }
+    end
+    {
+        if($null -ne $cts)
+        {
+            $cts.Dispose()
         }
     }
 }
@@ -446,7 +436,7 @@ function Test-AadToken
 {
     <#
 .SYNOPSIS
-    Parses and validates AAD issues token
+    Parses and validates AAD-issued token
 
 .DESCRIPTION
     Parses provided IdToken or AccessToken and checks for its validity.
@@ -465,6 +455,13 @@ Description
 -----------
 Command creates authentication factory, asks it to issue token for EventGrid and parses IdToken and validates it
 
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
+Get-AadToken | Test-AadToken -PayloadOnly
+
+Description
+-----------
+Command creates authentication factory, asks it to issue token for MS Graph and parses AccessToken (this is token to use when passing complete response from Get-AadToken), validates it and shows claims contained
 #>
 [CmdletBinding()]
     param (
@@ -482,6 +479,10 @@ Command creates authentication factory, asks it to issue token for EventGrid and
         if($token -is [Microsoft.Identity.Client.AuthenticationResult])
         {
             $Token = $Token.AccessToken
+        }
+        if($token -is [System.Collections.Hashtable])
+        {
+            $token = $token['Authorization'].Replace('Bearer ','')
         }
         $parts = $token.split('.')
         if($parts.Length -ne 3)
@@ -548,6 +549,86 @@ Command creates authentication factory, asks it to issue token for EventGrid and
     }
 }
 
+function Get-AadAccount
+{
+    <#
+.SYNOPSIS
+    Returns account(s) from AAD authentication factory cache
+
+.DESCRIPTION
+    For supported factory types, command returns either account(s) that match provided user account, or all accounts available in the cche.
+    For unsupported factories (those working with Managed Identities) does not return anything
+
+.OUTPUTS
+    One or more accounts found in factory cache
+
+.NOTES
+    Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+Get-AadAccount -Factory $factory -All
+
+Description
+-----------
+Returns all accounts from factory cache
+
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+Get-AadAccount -UserName John
+
+Description
+-----------
+Returns all accounts from factory cache that match pattern 'John'.
+
+#>
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificAcount')]
+            #User name to get account information for
+            #If not specified, all accounts cached in factory are returned
+        [string]$UserName,
+        [Parameter(ParameterSetName = 'All')]
+            #tells the command to return all accounts available
+        [switch]$All,
+            #AAD authentication factory created via New-AadAuthenticationFactory
+        $Factory = $script:AadLastCreatedFactory
+    )
+
+    begin
+    {
+        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
+        $supportedFlows = [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient, [AuthenticationFlow]::ResourceOwnerPassword, [AuthenticationFlow]::ConfidentialClient
+    }
+    process
+    {
+        if($factory.FlowType -in $supportedFlows)
+        {
+            switch($PSCmdlet.ParameterSetName)
+            {
+                'All' {
+                    $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
+                    break;
+                }
+                'SpecificAcount' {
+                    if(-not [string]::IsNullOrEmpty($UserName))
+                    {
+                        $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts | Where-Object{$_.UserName -match $Username}
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    end
+    {
+        if($null -ne $cts)
+        {
+            $cts.Dispose()
+        }
+    }
+}
 #region Internals
 function Base64UrlDecode
 {
@@ -680,18 +761,22 @@ function Init
         {
             'Core'
             {
-                $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
                 $referencedAssemblies+="$PSHome\System.Net.Primitives.dll"
                 $referencedAssemblies+="System.Net.WebProxy"
                 $referencedAssemblies+="System.Console"
 
                 try {
-                    [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
+                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+                    #compiling http factory against version of preloaded package
+                    $referencedAssemblies+=$existingType.Assembly.Location
                 }
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.IdentityModel.Abstractions.dll"
                     Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+                    #compiling http factory against our version
+                    $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+
                 }
 
                 break;
