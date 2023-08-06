@@ -846,6 +846,16 @@ function Init
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\Microsoft.Identity.Client.Broker.dll"
+                    switch($env:PROCESSOR_ARCHITECTURE)
+                    {
+                        'AMD64' {$runtimePath = "$PSScriptRoot\Runtimes\win-x64\native"; break;}
+                        'ARM64' {$runtimePath = "$PSScriptRoot\Runtimes\win-arm64\native"; break;}
+                        'X86' {$runtimePath = "$PSScriptRoot\Runtimes\win-x86\native"; break;}
+                    }
+                    if(-not [string]::IsNullOrEmpty($runtimePath))
+                    {
+                        $env:Path = "$($env:Path);$runtimePath"
+                    }
                 }
 
                 break;
@@ -868,6 +878,17 @@ function Init
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.Broker.dll"
+                    #need to add path to native runtime supporting the broker
+                    switch($env:PROCESSOR_ARCHITECTURE)
+                    {
+                        'AMD64' {$runtimePath = "$PSScriptRoot\Runtimes\win-x64\native"; break;}
+                        'ARM64' {$runtimePath = "$PSScriptRoot\Runtimes\win-arm64\native"; break;}
+                        'X86' {$runtimePath = "$PSScriptRoot\Runtimes\win-x86\native"; break;}
+                    }
+                    if(-not [string]::IsNullOrEmpty($runtimePath))
+                    {
+                        $env:Path = "$($env:Path);$runtimePath"
+                    }
                 }
 
                 #on desktop, this one is not pre-loaded
