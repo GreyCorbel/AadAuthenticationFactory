@@ -55,7 +55,7 @@
         <View>
         <Name>AuthenticationFactory</Name>
         <ViewSelectedBy>
-            <TypeName>AadAuthenticationFactory</TypeName>
+            <TypeName>GreyCorbel.Identity.Authentication.AadAuthenticationFactory</TypeName>
         </ViewSelectedBy>
         <TableControl>
             <TableRowEntries>

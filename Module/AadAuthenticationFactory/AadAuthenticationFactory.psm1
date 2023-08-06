@@ -62,6 +62,12 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Default: well-known clientId for Azure PowerShell
         $ClientId,
 
+        [Parameter()]
+        [Uri]
+            #RedirectUri for the client
+            #Default: default MSAL redirect Uri
+        $RedirectUri,
+
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [string]
             #Client secret for ClientID
@@ -85,14 +91,23 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
         [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
-        [ValidateSet('AzurePublic', 'AzureGermany', 'AzureChina','AzureUsGovernment','None')]
         [string]
             #AAD auth endpoint
             #Default: endpoint for public cloud
-        $AzureCloudInstance = 'AzurePublic',
+        $LoginApi = 'https://login.microsoftonline.com',
         
+        [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
+        [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
+        [Parameter(ParameterSetName = 'PublicClient')]
+        [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
+        [string]
+            #Name of the B2C policy to use for login
+            #Specifying this parameter means that you want to use B2B logig and expects you to provide B2C tenant name in tenant ID
+            #Default: endpoint for public cloud
+        $B2CPolicy,
+
         [Parameter(Mandatory, ParameterSetName = 'PublicClient')]
-        [ValidateSet('Interactive', 'DeviceCode', 'WIA')]
+        [ValidateSet('Interactive', 'DeviceCode', 'WIA', 'WAM')]
         [string]
             #How to authenticate client - via web view, via device code flow, or via Windows Integrated Auth
             #Used in public client flows
@@ -122,9 +137,18 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         $ModuleManifest = Import-PowershellDataFile $PSCommandPath.Replace('.psm1', '.psd1')
         $moduleName = [system.io.path]::GetFileNameWithoutExtension($PSCommandPath)
         $moduleVersion = $moduleManifest.ModuleVersion
+        if($null -ne $ModuleManifest.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($ModuleManifest.privatedata.psdata.Prerelease)"}
+
         $useDefaultCredentials = $false
         if([string]::IsNullOrWhiteSpace($clientId)) {$clientId = $ModuleManifest.PrivateData.Configuration.DefaultClientId}
 
+        if([string]::IsNullOrEmpty($B2CPolicy))
+        {
+            $AuthorityUri = "$LoginApi/$TenantId"
+        }
+        else {
+            $AuthorityUri = "$LoginApi/tfp/$TenantId/$B2CPolicy"
+        }
         #setup of common options
         switch($PSCmdlet.ParameterSetName)
         {
@@ -133,11 +157,21 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 $opts.ClientId = $clientId
                 $opts.clientName = $moduleName
                 $opts.ClientVersion = $moduleVersion
-                $opts.AzureCloudInstance = $AzureCloudInstance
-                $opts.TenantId = $tenantId
 
+                if(-not [string]::IsNullOrEmpty($RedirectUri))
+                {
+                    $opts.RedirectUri = $RedirectUri
+                }
                 $builder = [Microsoft.Identity.Client.ConfidentialClientApplicationBuilder]::CreateWithApplicationOptions($opts)
                 $builder = $builder.WithClientSecret($ClientSecret)
+                if([string]::IsNullOrEmpty($B2CPolicy))
+                {
+                    $builder = $builder.WithAuthority($AuthorityUri)
+                }
+                else
+                {
+                    $builder = $builder.WithB2CAuthority($authorityUri)
+                }
 
                 $flowType = [AuthenticationFlow]::ConfidentialClient
 
@@ -148,11 +182,27 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 $opts.ClientId = $clientId
                 $opts.clientName = $moduleName
                 $opts.ClientVersion = $moduleVersion
-                $opts.AzureCloudInstance = $AzureCloudInstance
-                $opts.TenantId = $tenantId
+
 
                 $builder = [Microsoft.Identity.Client.PublicClientApplicationBuilder]::CreateWithApplicationOptions($opts)
-                $builder = $builder.WithDefaultRedirectUri()
+
+                if([string]::IsNullOrEmpty($B2CPolicy))
+                {
+                    $builder = $builder.WithAuthority($AuthorityUri)
+                }
+                else
+                {
+                    $builder = $builder.WithB2CAuthority($authorityUri)
+                }
+                if(-not [string]::IsNullOrEmpty($RedirectUri))
+                {
+                    $builder = $builder.WithRedirectUri($RedirectUri)
+                }
+                else
+                {
+                    $builder = $builder.WithDefaultRedirectUri()
+                }
+
 
                 if($_ -eq 'ResourceOwnerPasssword')
                 {
@@ -168,6 +218,12 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                         }
                         'DeviceCode' { 
                             $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
+                            break
+                        }
+                        'WAM' { 
+                            $flowType = [AuthenticationFlow]::PublicClientWithWam
+                            $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
+                            $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
                             break
                         }
                         Default {
@@ -206,10 +262,11 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         | Add-Member -MemberType NoteProperty -Name FlowType -Value $flowType -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
-        | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru
+        | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru `
+        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
 
         #Give the factory common type name for formatting
-        $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'AadAuthenticationFactory')
+        $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
         $script:AadLastCreatedFactory 
     }
 }
@@ -305,7 +362,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             $scopes = $factory.DefaultScopes
             if($null -eq $Scopes)
             {
-                throw (new-object System.ArgumentException("No scopes scecified"))
+                throw (new-object System.ArgumentException("No scopes specified"))
             }
         }
 
@@ -352,6 +409,20 @@ Command shows how to get token as hashtable containing properly formatted Author
                         $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         #let the app throw to caller when UI required as the purpose here is to stay silent
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::PublicClientWithWam) {
+                    if($null -eq $Account) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
+                    try
+                    {
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow().ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
                 }
@@ -498,17 +569,52 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         }
 
         #validate the result using published keys
-        $endpoint = $result.Payload.iss.Replace('/v2.0','/')
+        if($null -eq $result.Payload.tfp)
+        {
+            #AAD token
+            $endpoint = $result.Payload.iss.Replace('/v2.0','')
+            $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
+        }
+        else
+        {
+            #AAD B2C token
+            $endpoint = $result.Payload.iss.Replace('/v2.0/','')
+            $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
+        }
 
-        $signingKeys = Invoke-RestMethod -Method Get -Uri "$($endpoint)discovery/keys"
+        $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint
 
         $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
         if($null -eq $key)
         {
-            throw "Could not find signing key with id = $($result.Header.kid)"
+            Write-Warning "Could not find signing key with id = $($result.Header.kid) on endpoint $keysEndpoint"
+            return $result
         }
-        $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
-        $rsa = $cert.PublicKey.Key
+
+        $rsa = $null
+        if($null -ne $key.x5c)
+        {
+            $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
+            $rsa = $cert.PublicKey.Key
+        }
+        if($null -ne $key.e -and $null -ne $key.n)
+        {
+            $exponent = Base64UrlDecode -data $key.e
+            $exponent = [convert]::FromBase64String($exponent)
+            $modulus = Base64UrlDecode -data $key.n
+            $modulus = [convert]::FromBase64String($modulus)
+            $rsa = new-object System.Security.Cryptography.RSACryptoServiceProvider
+            $params = new-object System.Security.Cryptography.RSAParameters
+            $params.Exponent = $exponent
+            $params.Modulus = $modulus
+            $rsa.ImportParameters($params)
+        }
+
+        if($null -eq $rsa)
+        {
+            Write-Warning "Could not validate the token as both x5c and n/e information is missing"
+            return $result
+        }
 
         $payload = "$($parts[0]).$($parts[1])"
         $dataToVerify = [System.Text.Encoding]::UTF8.GetBytes($payload)
@@ -532,7 +638,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         }
         $padding = [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
         $result.IsValid = $rsa.VerifyData($dataToVerify,$signature,$hash,$Padding)
-        $cert.Dispose()
+        if($null -ne $cert) {$cert.Dispose()}
         if($null -ne $result.Header.nonce)
         {
             Write-Verbose "Header contains nonce, so token may not be properly validated. See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609"
@@ -605,16 +711,31 @@ Returns all accounts from factory cache that match pattern 'John'.
     {
         if($factory.FlowType -in $supportedFlows)
         {
+            if([string]::IsNullOrEmpty($Factory.B2CPolicy))
+            {
+                $allAccounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
+            }
+            else
+            {
+                $allAccounts = $Factory.GetAccountsAsync($Factory.B2CPolicy) | AwaitTask -CancellationTokenSource $cts
+            }
+
             switch($PSCmdlet.ParameterSetName)
             {
                 'All' {
-                    $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
+                    $allAccounts
                     break;
                 }
                 'SpecificAcount' {
                     if(-not [string]::IsNullOrEmpty($UserName))
                     {
-                        $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts | Where-Object{$_.UserName -match $Username}
+                        $allAccounts | Where-Object{$_.UserName -match $Username}
+                    }
+                    else {
+                        if($allAccounts.Count -gt 0)
+                        {
+                            $allAccounts[0]
+                        }
                     }
                     break;
                 }
@@ -690,71 +811,12 @@ function AwaitTask {
     }
 }
 
-
 function Init
 {
     param()
 
     process
     {
-        $httpFactoryDefinition = @'
-        using Microsoft.Identity.Client;
-        using System.Net;
-        using System.Net.Http;
-
-        public class GcMsalHttpClientFactory : Microsoft.Identity.Client.IMsalHttpClientFactory
-        {
-            static HttpClient _httpClient;
-
-            protected GcMsalHttpClientFactory(WebProxy proxy, string productVersion, bool useDefaultCredentials = false)
-            {
-                if (null == _httpClient)
-                {
-                    var httpClientHandler = new HttpClientHandler()
-                    {
-                        UseDefaultCredentials = useDefaultCredentials
-                    };
-
-                    if (null != proxy)
-                    {
-                        httpClientHandler.Proxy = proxy;
-                        httpClientHandler.UseProxy = true;
-                    }
-                    _httpClient = new HttpClient(httpClientHandler);
-
-                    _httpClient.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AadAuthenticationFactory", productVersion));
-                }
-            }
-
-            public HttpClient GetHttpClient()
-            {
-                return _httpClient;
-            }
-
-            //PS5 has trouble to get interface from object instance
-            public static Microsoft.Identity.Client.IMsalHttpClientFactory Create(WebProxy proxy, string productVersion, bool useDefaultCredentials = false)
-            {
-                return new GcMsalHttpClientFactory(proxy, productVersion,useDefaultCredentials);
-            }
-        }
-'@
-
-        $deviceCodeHandlerDefinition = @'
-        public class DeviceCodeHandler
-        {
-            static System.Threading.Tasks.Task _Delegate(Microsoft.Identity.Client.DeviceCodeResult deviceCodeResult)
-            {
-                System.Console.WriteLine(deviceCodeResult.Message);
-                return System.Threading.Tasks.Task.FromResult(0);
-            }
-
-            //PS5 has trouble to get correct type when returning static method directly
-            public static System.Func<Microsoft.Identity.Client.DeviceCodeResult,System.Threading.Tasks.Task> Get()
-            {
-                return _Delegate;
-            }
-        }
-'@
         $referencedAssemblies = @('System.Net.Http')
         #load platform specific
         switch($PSEdition)
@@ -764,7 +826,7 @@ function Init
                 $referencedAssemblies+="$PSHome\System.Net.Primitives.dll"
                 $referencedAssemblies+="System.Net.WebProxy"
                 $referencedAssemblies+="System.Console"
-
+                
                 try {
                     $existingType = [Microsoft.Identity.Client.PublicClientApplication]
                     #compiling http factory against version of preloaded package
@@ -777,6 +839,13 @@ function Init
                     #compiling http factory against our version
                     $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
 
+                }
+                try {
+                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
+                }
+                catch
+                {
+                    Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\Microsoft.Identity.Client.Broker.dll"
                 }
 
                 break;
@@ -793,6 +862,14 @@ function Init
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.IdentityModel.Abstractions.dll"
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 }
+                try {
+                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
+                }
+                catch
+                {
+                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.Broker.dll"
+                }
+
                 #on desktop, this one is not pre-loaded
                 Add-Type -Assembly System.Net.Http
         
@@ -804,14 +881,20 @@ function Init
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         #check if we need to load or already loaded
         if($null -eq ('GcMsalHttpClientFactory' -as [type])) {
+            $httpFactoryDefinition = Get-Content "$PSScriptRoot\Helpers\GcMsalHttpClientFactory.cs" -Raw
             Add-Type -TypeDefinition $httpFactoryDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
         }
         if($null -eq ('DeviceCodeHandler' -as [type])) {
             #check if we need to load or already loaded
-            Add-Type -TypeDefinition $deviceCodeHandlerDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings        
+            $deviceCodeHandlerDefinition = Get-Content "$PSScriptRoot\Helpers\DeviceCodeHandler.cs" -Raw
+            Add-Type -TypeDefinition $deviceCodeHandlerDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+        }
+        if($null -eq ('ParentWindowHelper' -as [type])) {
+            #check if we need to load or already loaded
+            $parentWindowHelperDefinition = Get-Content "$PSScriptRoot\Helpers\ParentWindowHelper.cs" -Raw
+            Add-Type -TypeDefinition $parentWindowHelperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
         }
     }
-
 }
 
 
@@ -823,6 +906,8 @@ enum AuthenticationFlow
     PublicClientWithDeviceCode
     #Public client with Windows Integrated auth
     PublicClientWithWia
+    #Public client with Windows Authentication Broker
+    PublicClientWithWam
     #Confidential client with client secret or certificate
     ConfidentialClient
     #Confidential client with System-assigned Managed identity or Arc-enabled server
