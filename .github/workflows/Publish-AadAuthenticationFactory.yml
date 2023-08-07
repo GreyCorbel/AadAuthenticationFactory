@@ -1,4 +1,4 @@
-ng:name: Publish-AadAuthenticationFactory
+name: Publish-AadAuthenticationFactory
 on:
   push:
     branches:
@@ -57,7 +57,7 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
 
-        Get-childItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -recurse
+        Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse
     - name: Sign files
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
@@ -80,7 +80,6 @@ jobs:
               -TimestampServer http://timestamp.digicert.com  `
           | Select-Object Path,Status `
           | Format-List
-          
         }
         catch
         {
