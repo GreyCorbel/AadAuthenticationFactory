@@ -3,8 +3,7 @@ param
  [string]$Root
 )
 
-"Restoring packages"
-&"$env:nuget" restore "$Root\packages.config" -packagesDirectory "$Root\packages"
+&"$env:nuget" restore "$Root\Workflow\packages.config" -packagesDirectory "$Root\packages" | Out-Null
 "Updating packages in the module"
 $packages = ([xml](get-content -path "$Root\packages.config" -raw)).packages.package
 $packages
