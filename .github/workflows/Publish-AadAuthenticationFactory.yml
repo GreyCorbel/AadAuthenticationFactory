@@ -31,9 +31,8 @@ jobs:
         "Building module"
         &"$env:GITHUB_WORKSPACE\Workflow\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
         "Setting up packages"
-        &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -Root "$env:GITHUB_WORKSPACE"
+        &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE" -NugetPath $env:nuget
 
-        Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse | Out-String
       
     - name: Sign files
       shell: pwsh
