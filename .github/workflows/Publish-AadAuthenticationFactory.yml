@@ -26,8 +26,9 @@ jobs:
     - name: Build Module
       shell: pwsh
       run: |
+        dir "$env:GITHUB_WORKSPACE" -recurse
         "Copying license file"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
+        Copy-Item -Path \LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
         "Building module"
         &"$env:GITHUB_WORKSPACE\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
         "Restoring packages"
