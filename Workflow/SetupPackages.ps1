@@ -5,7 +5,7 @@ param
 
 &"$env:nuget" restore "$Root\Workflow\packages.config" -packagesDirectory "$Root\packages" | Out-Null
 "Updating packages in the module"
-$packages = ([xml](get-content -path "$Root\packages.config" -raw)).packages.package
+$packages = ([xml](get-content -path "$Root\Workflow\packages.config" -raw)).packages.package
 $packages
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
 "Processing: $($pkg.id)"
