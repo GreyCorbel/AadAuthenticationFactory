@@ -57,7 +57,8 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
 
-        Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse
+        $result = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse | Out-String
+        Write-Host $result
     - name: Sign files
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
