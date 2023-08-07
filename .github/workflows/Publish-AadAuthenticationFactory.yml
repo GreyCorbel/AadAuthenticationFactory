@@ -17,17 +17,50 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    - name: Checkout
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      uses: actions/checkout@v3
-
+    - uses: actions/checkout@v3
+    - uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: 'latest'
+        
     - name: Build Module
       shell: pwsh
       run: |
+        "Copying license file"
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
+        "Building module"
+        &"$env:GITHUB_WORKSPACE\Commands\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
+        "Restoring packages"
+        &"$env:GITHUB_WORKSPACE\nuget.exe" restore --packagesDirectory "$env:GITHUB_WORKSPACE\packages"
+        "Updating packages in the module"
+        $packages = ([xml](get-content -path .\packages.config -raw)).packages.package
 
+        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
+        $pkg.id
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net6.0" -Force
+      
+        $pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
+        $pkg.id
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net6.0" -Force
+      
+        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.NativeInterop"}
+        $pkg.id
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
+        #runtimes for native interop
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\runtimes -recurse
+
+        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
+        $pkg.id
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
+
+        dir $env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory -recurse
     - name: Sign files
       shell: pwsh
+      if: ${{ github.event_name != 'workflow_dispatch' }}
       env:
         CERTPASS: ${{secrets.GC_SIGNING_CERT_PASSWORD}}
         SIGNCERT: ${{secrets.GC_SIGNING_CERT}}
@@ -58,6 +91,7 @@ jobs:
     - name: Publish
       #Publish to PS Gallery
       shell: pwsh
+      if: ${{ github.event_name != 'workflow_dispatch' }}
       env:
         SECRET: ${{ secrets.PSGallery_APIKey }}
       run: |
@@ -77,6 +111,7 @@ jobs:
     - name: Create Release
       #Create a release
       id: create_release
+      if: ${{ github.event_name != 'workflow_dispatch' }}
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref }}

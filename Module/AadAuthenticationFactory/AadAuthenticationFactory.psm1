@@ -1,3 +1,330 @@
+#region Public commands
+function Get-AadAccount
+{
+    <#
+.SYNOPSIS
+    Returns account(s) from AAD authentication factory cache
+
+.DESCRIPTION
+    For supported factory types, command returns either account(s) that match provided user account, or all accounts available in the cche.
+    For unsupported factories (those working with Managed Identities) does not return anything
+
+.OUTPUTS
+    One or more accounts found in factory cache
+
+.NOTES
+    Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+Get-AadAccount -Factory $factory -All
+
+Description
+-----------
+Returns all accounts from factory cache
+
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+Get-AadAccount -UserName John
+
+Description
+-----------
+Returns all accounts from factory cache that match pattern 'John'.
+
+#>
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificAcount')]
+            #User name to get account information for
+            #If not specified, all accounts cached in factory are returned
+        [string]$UserName,
+        [Parameter(ParameterSetName = 'All')]
+            #tells the command to return all accounts available
+        [switch]$All,
+            #AAD authentication factory created via New-AadAuthenticationFactory
+        $Factory = $script:AadLastCreatedFactory
+    )
+
+    begin
+    {
+        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
+        $supportedFlows = [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient, [AuthenticationFlow]::ResourceOwnerPassword, [AuthenticationFlow]::ConfidentialClient
+    }
+    process
+    {
+        if($factory.FlowType -in $supportedFlows)
+        {
+            if([string]::IsNullOrEmpty($Factory.B2CPolicy))
+            {
+                $allAccounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
+            }
+            else
+            {
+                $allAccounts = $Factory.GetAccountsAsync($Factory.B2CPolicy) | AwaitTask -CancellationTokenSource $cts
+            }
+
+            switch($PSCmdlet.ParameterSetName)
+            {
+                'All' {
+                    $allAccounts
+                    break;
+                }
+                'SpecificAcount' {
+                    if(-not [string]::IsNullOrEmpty($UserName))
+                    {
+                        $allAccounts | Where-Object{$_.UserName -match $Username}
+                    }
+                    else {
+                        if($allAccounts.Count -gt 0)
+                        {
+                            $allAccounts[0]
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    end
+    {
+        if($null -ne $cts)
+        {
+            $cts.Dispose()
+        }
+    }
+}
+function Get-AadToken
+{
+    <#
+.SYNOPSIS
+    Retrieves AAD token according to configuration of authentication factory
+
+.DESCRIPTION
+    Retrieves AAD token according to configuration of authentication factory
+
+.OUTPUTS
+    Authentication result from AAD with tokens and other information, or hashtable with Authorization header
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$token = $factory | Get-AadToken
+
+Description
+-----------
+Command creates authentication factory and retrieves AAD token from it, authenticating user via web view or browser
+
+.EXAMPLE
+$cosmosDbAccountName = 'myCosmosDBAcct
+$factory = New-AadAuthenticationFactory -DefaultScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
+$token = $factory | Get-AadToken
+
+Description
+-----------
+Command creates authentication factory and retrieves AAD token for access data plane of cosmos DB aaccount.
+For details on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId mydomain.com -AuthMode WIA
+$token = $factory | Get-AadToken -Scopes @('https://eventgrid.azure.net/.default')
+
+Description
+-----------
+Command creates authentication factory without default scopes and retrieves AAD token for access to event grid, specifying scopes when asking for token
+
+.EXAMPLE
+New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/myapi/.default') -AuthMode WIA
+$headers = Get-AadToken -AsHashtable
+Invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
+
+Description
+-----------
+Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
+
+#>
+    [CmdletBinding()]
+    param
+    (
+        [Parameter()]
+        [Alias("RequiredScopes")]
+            #Scopes to be returned in the token.
+            #If not specified, returns token with default scopes provided when creating the factory
+        [string[]]$Scopes = $null,
+        [Parameter()]
+            #User name hint for authentication process
+        [string]$UserName,
+        [Parameter()]
+            #Access token for user
+            #Used to identify user in on-behalf-of flows
+        [string]$UserToken,
+            #When specified, hashtable with Authorization header is returned instead of token
+            #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
+            #When not specified, returns authentication result with tokens and other metadata
+        [switch]$AsHashTable,
+            #Asks runtime to avoid token cache and get fresh token from AAD
+            [switch]$forceRefresh,
+        [Parameter(ValueFromPipeline)]
+            #AAD authentication factory created via New-AadAuthenticationFactory
+        $Factory = $script:AadLastCreatedFactory
+    )
+
+    begin
+    {
+        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
+    }
+    process
+    {
+        if($null -eq $Factory)
+        {
+            Write-Error "Please pass valid instance of AAD Authentication Factory"
+            return
+        }
+
+        if($null -eq $Scopes)
+        {
+            $scopes = $factory.DefaultScopes
+            if($null -eq $Scopes)
+            {
+                throw (new-object System.ArgumentException("No scopes specified"))
+            }
+        }
+
+        if([string]::IsNullOrWhiteSpace($UserName))
+        {
+            $UserName = $factory.DefaultUserName
+        }
+
+        if(-not [string]::IsNullOrEmpty($UserToken))
+        {
+            if($Factory.FlowType -ne [AuthenticationFlow]::ConfidentialClient)
+            {
+                throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
+            }
+            $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
+            $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
+        }
+        else
+        {
+            $account = Get-AadAccount -UserName $UserName -Factory $Factory
+            switch($Factory.FlowType)
+            {
+                ([AuthenticationFlow]::PublicClient) {
+                    try
+                    {
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::PublicClientWithWia) {
+                    if($null -ne $Account)
+                    {
+                        $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    else
+                    {
+                        $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        #let the app throw to caller when UI required as the purpose here is to stay silent
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::PublicClientWithWam) {
+                    if($null -eq $Account) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
+                    try
+                    {
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow().ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::PublicClientWithDeviceCode) {
+                    try
+                    {
+                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::ResourceOwnerPassword) {
+                    try
+                    {
+                        $creds = $factory.ResourceOwnerCredential
+                        if($forceRefresh)
+                        {
+                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                        else
+                        {
+                            $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
+                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                        }
+                    }
+                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
+                    {
+                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    }
+                    break;
+                }
+                ([AuthenticationFlow]::ConfidentialClient) {
+
+                    $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
+                }
+                ([AuthenticationFlow]::ManagedIdentity) {
+                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
+                }
+                ([AuthenticationFlow]::UserAssignedIdentity) {
+                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
+                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                    break
+                }
+                default {
+                    throw (new-object System.ArgumentException("Unsupported authentication flow: $_"))
+                }
+            }
+        }
+
+        if($AsHashTable)
+        {
+            @{
+                'Authorization' = $rslt.CreateAuthorizationHeader()
+            }
+        }
+        else
+        {
+            $rslt
+        }
+    }
+    end
+    {
+        if($null -ne $cts)
+        {
+            $cts.Dispose()
+        }
+    }
+}
 function New-AadAuthenticationFactory
 {
     <#
@@ -270,239 +597,6 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         $script:AadLastCreatedFactory 
     }
 }
-
-function Get-AadToken
-{
-    <#
-.SYNOPSIS
-    Retrieves AAD token according to configuration of authentication factory
-
-.DESCRIPTION
-    Retrieves AAD token according to configuration of authentication factory
-
-.OUTPUTS
-    Authentication result from AAD with tokens and other information, or hashtable with Authorization header
-
-.EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-$token = $factory | Get-AadToken
-
-Description
------------
-Command creates authentication factory and retrieves AAD token from it, authenticating user via web view or browser
-
-.EXAMPLE
-$cosmosDbAccountName = 'myCosmosDBAcct
-$factory = New-AadAuthenticationFactory -DefaultScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
-$token = $factory | Get-AadToken
-
-Description
------------
-Command creates authentication factory and retrieves AAD token for access data plane of cosmos DB aaccount.
-For details on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
-
-.EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com -AuthMode WIA
-$token = $factory | Get-AadToken -Scopes @('https://eventgrid.azure.net/.default')
-
-Description
------------
-Command creates authentication factory without default scopes and retrieves AAD token for access to event grid, specifying scopes when asking for token
-
-.EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/myapi/.default') -AuthMode WIA
-$headers = Get-AadToken -AsHashtable
-Invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
-
-Description
------------
-Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
-
-#>
-    [CmdletBinding()]
-    param
-    (
-        [Parameter()]
-        [Alias("RequiredScopes")]
-            #Scopes to be returned in the token.
-            #If not specified, returns token with default scopes provided when creating the factory
-        [string[]]$Scopes = $null,
-        [Parameter()]
-            #User name hint for authentication process
-        [string]$UserName,
-        [Parameter()]
-            #Access token for user
-            #Used to identify user in on-behalf-of flows
-        [string]$UserToken,
-            #When specified, hashtable with Authorization header is returned instead of token
-            #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
-            #When not specified, returns authentication result with tokens and other metadata
-        [switch]$AsHashTable,
-            #Asks runtime to avoid token cache and get fresh token from AAD
-            [switch]$forceRefresh,
-        [Parameter(ValueFromPipeline)]
-            #AAD authentication factory created via New-AadAuthenticationFactory
-        $Factory = $script:AadLastCreatedFactory
-    )
-
-    begin
-    {
-        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-    }
-    process
-    {
-        if($null -eq $Factory)
-        {
-            Write-Error "Please pass valid instance of AAD Authentication Factory"
-            return
-        }
-
-        if($null -eq $Scopes)
-        {
-            $scopes = $factory.DefaultScopes
-            if($null -eq $Scopes)
-            {
-                throw (new-object System.ArgumentException("No scopes specified"))
-            }
-        }
-
-        if([string]::IsNullOrWhiteSpace($UserName))
-        {
-            $UserName = $factory.DefaultUserName
-        }
-
-        if(-not [string]::IsNullOrEmpty($UserToken))
-        {
-            if($Factory.FlowType -ne [AuthenticationFlow]::ConfidentialClient)
-            {
-                throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
-            }
-            $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
-            $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
-        }
-        else
-        {
-            $account = Get-AadAccount -UserName $UserName -Factory $Factory
-            switch($Factory.FlowType)
-            {
-                ([AuthenticationFlow]::PublicClient) {
-                    try
-                    {
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                    {
-                        $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    break;
-                }
-                ([AuthenticationFlow]::PublicClientWithWia) {
-                    if($null -ne $Account)
-                    {
-                        $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    else
-                    {
-                        $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        #let the app throw to caller when UI required as the purpose here is to stay silent
-                    }
-                    break;
-                }
-                ([AuthenticationFlow]::PublicClientWithWam) {
-                    if($null -eq $Account) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
-                    try
-                    {
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                    {
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow().ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    break;
-                }
-                ([AuthenticationFlow]::PublicClientWithDeviceCode) {
-                    try
-                    {
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                    {
-                        $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    break;
-                }
-                ([AuthenticationFlow]::ResourceOwnerPassword) {
-                    try
-                    {
-                        $creds = $factory.ResourceOwnerCredential
-                        if($forceRefresh)
-                        {
-                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                        else
-                        {
-                            $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                        }
-                    }
-                    catch [Microsoft.Identity.Client.MsalUiRequiredException]
-                    {
-                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
-                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
-                    break;
-                }
-                ([AuthenticationFlow]::ConfidentialClient) {
-
-                    $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
-                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    break
-                }
-                ([AuthenticationFlow]::ManagedIdentity) {
-                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
-                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    break
-                }
-                ([AuthenticationFlow]::UserAssignedIdentity) {
-                    $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
-                    $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    break
-                }
-                default {
-                    throw (new-object System.ArgumentException("Unsupported authentication flow: $_"))
-                }
-            }
-        }
-
-        if($AsHashTable)
-        {
-            @{
-                'Authorization' = $rslt.CreateAuthorizationHeader()
-            }
-        }
-        else
-        {
-            $rslt
-        }
-    }
-    end
-    {
-        if($null -ne $cts)
-        {
-            $cts.Dispose()
-        }
-    }
-}
-
 function Test-AadToken
 {
     <#
@@ -654,128 +748,27 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         }
     }
 }
-
-function Get-AadAccount
+#endregion Public commands
+#region Internal commands
+enum AuthenticationFlow
 {
-    <#
-.SYNOPSIS
-    Returns account(s) from AAD authentication factory cache
-
-.DESCRIPTION
-    For supported factory types, command returns either account(s) that match provided user account, or all accounts available in the cche.
-    For unsupported factories (those working with Managed Identities) does not return anything
-
-.OUTPUTS
-    One or more accounts found in factory cache
-
-.NOTES
-    Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
-
-.EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadAccount -Factory $factory -All
-
-Description
------------
-Returns all accounts from factory cache
-
-.EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadAccount -UserName John
-
-Description
------------
-Returns all accounts from factory cache that match pattern 'John'.
-
-#>
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificAcount')]
-            #User name to get account information for
-            #If not specified, all accounts cached in factory are returned
-        [string]$UserName,
-        [Parameter(ParameterSetName = 'All')]
-            #tells the command to return all accounts available
-        [switch]$All,
-            #AAD authentication factory created via New-AadAuthenticationFactory
-        $Factory = $script:AadLastCreatedFactory
-    )
-
-    begin
-    {
-        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-        $supportedFlows = [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient, [AuthenticationFlow]::ResourceOwnerPassword, [AuthenticationFlow]::ConfidentialClient
-    }
-    process
-    {
-        if($factory.FlowType -in $supportedFlows)
-        {
-            if([string]::IsNullOrEmpty($Factory.B2CPolicy))
-            {
-                $allAccounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
-            }
-            else
-            {
-                $allAccounts = $Factory.GetAccountsAsync($Factory.B2CPolicy) | AwaitTask -CancellationTokenSource $cts
-            }
-
-            switch($PSCmdlet.ParameterSetName)
-            {
-                'All' {
-                    $allAccounts
-                    break;
-                }
-                'SpecificAcount' {
-                    if(-not [string]::IsNullOrEmpty($UserName))
-                    {
-                        $allAccounts | Where-Object{$_.UserName -match $Username}
-                    }
-                    else {
-                        if($allAccounts.Count -gt 0)
-                        {
-                            $allAccounts[0]
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-    }
-    end
-    {
-        if($null -ne $cts)
-        {
-            $cts.Dispose()
-        }
-    }
+    #Public client with browser based auth
+    PublicClient
+    #Public client with console based auth
+    PublicClientWithDeviceCode
+    #Public client with Windows Integrated auth
+    PublicClientWithWia
+    #Public client with Windows Authentication Broker
+    PublicClientWithWam
+    #Confidential client with client secret or certificate
+    ConfidentialClient
+    #Confidential client with System-assigned Managed identity or Arc-enabled server
+    ManagedIdentity
+    #Confidential client with User-assigned Managed identity
+    UserAssignedIdentity
+    #Unattended Resource Owner auth with username and password
+    ResourceOwnerPassword
 }
-#region Internals
-function Base64UrlDecode
-{
-    param
-    (
-        [Parameter(Mandatory,ValueFromPipeline)]
-        [string]$Data
-    )
-
-    process
-    {
-        $result = $Data
-        $result = $result.Replace('-','+').Replace('_','/')
-
-        switch($result.Length % 4)
-        {
-            0 {break;}
-            2 {$result = "$result=="; break}
-            3 {$result = "$result="; break;}
-            default {throw "Invalid data format"}
-        }
-
-        $result
-    }
-}
-
 function AwaitTask {
     param (
         [Parameter(ValueFromPipeline, Mandatory)]
@@ -810,7 +803,30 @@ function AwaitTask {
         }
     }
 }
+function Base64UrlDecode
+{
+    param
+    (
+        [Parameter(Mandatory,ValueFromPipeline)]
+        [string]$Data
+    )
 
+    process
+    {
+        $result = $Data
+        $result = $result.Replace('-','+').Replace('_','/')
+
+        switch($result.Length % 4)
+        {
+            0 {break;}
+            2 {$result = "$result=="; break}
+            3 {$result = "$result="; break;}
+            default {throw "Invalid data format"}
+        }
+
+        $result
+    }
+}
 function Init
 {
     param()
@@ -917,28 +933,7 @@ function Init
         }
     }
 }
-
-
-enum AuthenticationFlow
-{
-    #Public client with browser based auth
-    PublicClient
-    #Public client with console based auth
-    PublicClientWithDeviceCode
-    #Public client with Windows Integrated auth
-    PublicClientWithWia
-    #Public client with Windows Authentication Broker
-    PublicClientWithWam
-    #Confidential client with client secret or certificate
-    ConfidentialClient
-    #Confidential client with System-assigned Managed identity or Arc-enabled server
-    ManagedIdentity
-    #Confidential client with User-assigned Managed identity
-    UserAssignedIdentity
-    #Unattended Resource Owner auth with username and password
-    ResourceOwnerPassword
-}
-
-#endregion
-
+#endregion Internal commands
+#region Module initialization
 Init
+#endregion Module initialization
