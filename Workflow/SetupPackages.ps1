@@ -7,6 +7,11 @@ param
 "Updating packages in the module"
 $packages = ([xml](get-content -path "$Root\Workflow\packages.config" -raw)).packages.package
 $packages
+if(-not (Test-Path -Path "$Root\Module\AadAuthenticationFactory\shared")) { New-Item -ItemType Directory -Path "$Root\Module\AadAuthenticationFactory\shared"}
+if(-not (Test-Path -Path "$Root\Module\AadAuthenticationFactory\shared\net461")) { New-Item -ItemType Directory -Path "$Root\Module\AadAuthenticationFactory\shared\net461"}
+if(-not (Test-Path -Path "$Root\Module\AadAuthenticationFactory\shared\netstandard2.0")) { New-Item -ItemType Directory -Path "$Root\Module\AadAuthenticationFactory\shared\netstandard2.0"}
+if(-not (Test-Path -Path "$Root\Module\AadAuthenticationFactory\shared\net6.0")) { New-Item -ItemType Directory -Path "$Root\Module\AadAuthenticationFactory\shared\net6.0"}
+
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
 "Processing: $($pkg.id)"
 Copy-Item -Path "$Root\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$Root\Module\AadAuthenticationFactory\shared\net461" -Force
