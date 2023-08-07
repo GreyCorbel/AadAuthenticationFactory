@@ -26,16 +26,15 @@ jobs:
     - name: Build Module
       shell: pwsh
       run: |
-        dir "$env:GITHUB_WORKSPACE" -recurse
         "Copying license file"
         Copy-Item -Path \LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
         "Building module"
         &"$env:GITHUB_WORKSPACE\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
         "Restoring packages"
-        &"$env:GITHUB_WORKSPACE\nuget.exe" restore --packagesDirectory "$env:GITHUB_WORKSPACE\packages"
+        &"$env:nuget" restore --packagesDirectory "$env:GITHUB_WORKSPACE\packages"
         "Updating packages in the module"
         $packages = ([xml](get-content -path .\packages.config -raw)).packages.package
-
+        $packages
         $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
         $pkg.id
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
@@ -51,14 +50,14 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
         #runtimes for native interop
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\runtimes -recurse
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\runtimes" -recurse
 
         $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
         $pkg.id
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
 
-        dir $env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory -recurse
+        dir "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -recurse
     - name: Sign files
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
