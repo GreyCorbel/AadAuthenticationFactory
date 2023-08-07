@@ -50,7 +50,7 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
         Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
         #runtimes for native interop
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\runtimes" -recurse
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -recurse
 
         $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
         "Processing: $($pkg.id)"
