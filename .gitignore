@@ -3,6 +3,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+#external binaries
+Module/AadAuthenticationFactory/[Ss]hared/
+Module/AadAuthenticationFactory/[Rr]untimes/
+
 # User-specific files
 *.rsuser
 *.suo

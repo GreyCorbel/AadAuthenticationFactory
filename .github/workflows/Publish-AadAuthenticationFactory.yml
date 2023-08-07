@@ -30,35 +30,11 @@ jobs:
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
         "Building module"
         &"$env:GITHUB_WORKSPACE\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
-        "Restoring packages"
-        &"$env:nuget" restore "$env:GITHUB_WORKSPACE\packages.config" -packagesDirectory "$env:GITHUB_WORKSPACE\packages"
-        "Updating packages in the module"
-        $packages = ([xml](get-content -path "$env:GITHUB_WORKSPACE\packages.config" -raw)).packages.package
-        $packages
-        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
-        "Processing: $($pkg.id)"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net6.0" -Force
-      
-        $pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
-        "Processing: $($pkg.id)"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net6.0" -Force
-      
-        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.NativeInterop"}
-        "Processing: $($pkg.id)"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
-        #runtimes for native interop
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\runtimes" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -recurse
+        "Setting up packages"
+        &"$env:GITHUB_WORKSPACE\SetupPackages.ps1" -Root "$env:GITHUB_WORKSPACE"
 
-        $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
-        "Processing: $($pkg.id)"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\net461" -Force
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force
-
-        $result = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse | Out-String
-        Write-Host $result
+        Get-ChildItem -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\" -Recurse | Out-String
+      
     - name: Sign files
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
