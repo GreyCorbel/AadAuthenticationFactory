@@ -29,7 +29,7 @@ jobs:
         "Copying license file"
         Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
         "Building module"
-        &"$env:GITHUB_WORKSPACE\Commands\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
+        &"$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\Commands\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
         "Restoring packages"
         &"$env:GITHUB_WORKSPACE\nuget.exe" restore --packagesDirectory "$env:GITHUB_WORKSPACE\packages"
         "Updating packages in the module"
