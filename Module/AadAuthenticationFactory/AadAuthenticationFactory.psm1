@@ -236,7 +236,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithWam) {
-                    if($null -eq $Account) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
+                    if($null -eq $Account -and [string]::IsNullOrEmpty($userName)) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
                     try
                     {
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
@@ -244,7 +244,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow().ExecuteAsync($cts.Token)
+                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow([ParentWindowHelper]::GetConsoleOrTerminalWindow()).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -490,7 +490,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                     $opts.RedirectUri = $RedirectUri
                 }
                 $builder = [Microsoft.Identity.Client.ConfidentialClientApplicationBuilder]::CreateWithApplicationOptions($opts)
-                $builder = $builder.WithClientSecret($ClientSecret)
+                if($_ -eq 'ConfidentialClientWithSecret')
+                {
+                    $builder = $builder.WithClientSecret($ClientSecret)
+                }
+                else
+                {
+                    $builder = $builder.WithCertificate($X509Certificate)
+                }
                 if([string]::IsNullOrEmpty($B2CPolicy))
                 {
                     $builder = $builder.WithAuthority($AuthorityUri)
@@ -529,7 +536,6 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     $builder = $builder.WithDefaultRedirectUri()
                 }
-
 
                 if($_ -eq 'ResourceOwnerPasssword')
                 {
