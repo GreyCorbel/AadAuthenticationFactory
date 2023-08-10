@@ -163,7 +163,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                     $opts.RedirectUri = $RedirectUri
                 }
                 $builder = [Microsoft.Identity.Client.ConfidentialClientApplicationBuilder]::CreateWithApplicationOptions($opts)
-                $builder = $builder.WithClientSecret($ClientSecret)
+                if($_ -eq 'ConfidentialClientWithSecret')
+                {
+                    $builder = $builder.WithClientSecret($ClientSecret)
+                }
+                else
+                {
+                    $builder = $builder.WithCertificate($X509Certificate)
+                }
                 if([string]::IsNullOrEmpty($B2CPolicy))
                 {
                     $builder = $builder.WithAuthority($AuthorityUri)
@@ -202,7 +209,6 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     $builder = $builder.WithDefaultRedirectUri()
                 }
-
 
                 if($_ -eq 'ResourceOwnerPasssword')
                 {
