@@ -48,11 +48,10 @@ Returns all accounts from factory cache that match pattern 'John'.
     begin
     {
         [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-        $supportedFlows = [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient, [AuthenticationFlow]::ResourceOwnerPassword, [AuthenticationFlow]::ConfidentialClient
     }
     process
     {
-        if($factory.FlowType -in $supportedFlows)
+        if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
             if([string]::IsNullOrEmpty($Factory.B2CPolicy))
             {

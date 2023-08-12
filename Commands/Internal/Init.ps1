@@ -27,10 +27,8 @@ function Init
                     $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
 
                 }
-                try {
-                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
-                }
-                catch
+
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\Microsoft.Identity.Client.Broker.dll"
                     switch($env:PROCESSOR_ARCHITECTURE)
@@ -49,20 +47,18 @@ function Init
             }
             'Desktop'
             {
-                $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
-                #only load when not present
                 try {
-                    [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
+                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+                    #compiling http factory against version of preloaded package
+                    $referencedAssemblies+=$existingType.Assembly.Location
                 }
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.IdentityModel.Abstractions.dll"
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
+                    $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 }
-                try {
-                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
-                }
-                catch
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.Broker.dll"
                     #need to add path to native runtime supporting the broker

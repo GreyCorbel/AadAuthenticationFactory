@@ -111,6 +111,7 @@ Command shows how to get token as hashtable containing properly formatted Author
         }
         else
         {
+            Write-Verbose "Getting account from cache"
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
             switch($Factory.FlowType)
             {
@@ -151,21 +152,27 @@ Command shows how to get token as hashtable containing properly formatted Author
                         Write-Verbose "Getting token for OperatingSystemAccount"
                         $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
                     }
-                    else
-                    {
-                        Write-Verbose "Getting token for $userName"
-                    }
-
                     try
                     {
+                        Write-Verbose "Getting token silently"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         $windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
-                        Write-Verbose "Falling back to browser auth with parent window hadle: $windowHandle"
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenInteractive($Scopes)
+                        if(-not [string]::IsNullOrEmpty($UserName))
+                        {
+                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and login hint: $userName"
+                            $builder = $builder.WithLoginHint($userName)
+                        }
+                        else
+                        {
+                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and account: $($account.userName)"
+                            $builder = $builder.WithAccount($account)
+                        }
+                        $task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;

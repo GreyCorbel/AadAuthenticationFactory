@@ -49,11 +49,10 @@ Returns all accounts from factory cache that match pattern 'John'.
     begin
     {
         [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
-        $supportedFlows = [AuthenticationFlow]::PublicClientWithWia, [AuthenticationFlow]::PublicClientWithDeviceCode, [AuthenticationFlow]::PublicClient, [AuthenticationFlow]::ResourceOwnerPassword, [AuthenticationFlow]::ConfidentialClient
     }
     process
     {
-        if($factory.FlowType -in $supportedFlows)
+        if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
             if([string]::IsNullOrEmpty($Factory.B2CPolicy))
             {
@@ -207,6 +206,7 @@ Command shows how to get token as hashtable containing properly formatted Author
         }
         else
         {
+            Write-Verbose "Getting account from cache"
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
             switch($Factory.FlowType)
             {
@@ -247,21 +247,27 @@ Command shows how to get token as hashtable containing properly formatted Author
                         Write-Verbose "Getting token for OperatingSystemAccount"
                         $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
                     }
-                    else
-                    {
-                        Write-Verbose "Getting token for $userName"
-                    }
-
                     try
                     {
+                        Write-Verbose "Getting token silently"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         $windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
-                        Write-Verbose "Falling back to browser auth with parent window hadle: $windowHandle"
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenInteractive($Scopes)
+                        if(-not [string]::IsNullOrEmpty($UserName))
+                        {
+                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and login hint: $userName"
+                            $builder = $builder.WithLoginHint($userName)
+                        }
+                        else
+                        {
+                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and account: $($account.userName)"
+                            $builder = $builder.WithAccount($account)
+                        }
+                        $task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -897,10 +903,8 @@ function Init
                     $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
 
                 }
-                try {
-                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
-                }
-                catch
+
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\Microsoft.Identity.Client.Broker.dll"
                     switch($env:PROCESSOR_ARCHITECTURE)
@@ -919,20 +923,18 @@ function Init
             }
             'Desktop'
             {
-                $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
-                #only load when not present
                 try {
-                    [Microsoft.Identity.Client.PublicClientApplication] | Out-Null
+                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+                    #compiling http factory against version of preloaded package
+                    $referencedAssemblies+=$existingType.Assembly.Location
                 }
                 catch
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.IdentityModel.Abstractions.dll"
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
+                    $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
                 }
-                try {
-                    $existingType = [Microsoft.Identity.Client.Broker.BrokerExtension]
-                }
-                catch
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.Broker.dll"
                     #need to add path to native runtime supporting the broker
