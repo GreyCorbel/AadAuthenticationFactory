@@ -578,18 +578,32 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     switch ($AuthMode) {
                         'WIA' { 
-                            $flowType = [AuthenticationFlow]::PublicClientWithWia
-                            $useDefaultCredentials = $true
+                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                            {
+                                $flowType = [AuthenticationFlow]::PublicClientWithWia
+                                $useDefaultCredentials = $true
+                            }
+                            else
+                            {
+                                throw New-Object System.PlatformNotSupportedException("WIA is only supported on Windows platform")
+                            }
                             break 
                         }
                         'DeviceCode' { 
                             $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
                             break
                         }
-                        'WAM' { 
-                            $flowType = [AuthenticationFlow]::PublicClientWithWam
-                            $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
-                            $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                        'WAM' {
+                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                            {
+                                $flowType = [AuthenticationFlow]::PublicClientWithWam
+                                $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
+                                $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                            }
+                            else
+                            {
+                                throw New-Object System.PlatformNotSupportedException("WAM is only supported on Windows platform")
+                            }
                             break
                         }
                         Default {
@@ -909,11 +923,11 @@ function Init
 
                 }
                 #on Windows, load WAM broker
-                if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
-                    if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
+                    if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
-                        Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
                         switch($env:PROCESSOR_ARCHITECTURE)
                         {
                             'AMD64' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native')); break;}
@@ -942,9 +956,9 @@ function Init
                     $referencedAssemblies+=[System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.dll'))
                 }
                 #on Windows, load WAM broker
-                if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
-                    if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+                    if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
                         Add-Type -Path [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.Broker.dll'))
                         #need to add path to native runtime supporting the broker

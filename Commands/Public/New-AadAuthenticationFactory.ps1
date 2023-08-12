@@ -218,18 +218,32 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     switch ($AuthMode) {
                         'WIA' { 
-                            $flowType = [AuthenticationFlow]::PublicClientWithWia
-                            $useDefaultCredentials = $true
+                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                            {
+                                $flowType = [AuthenticationFlow]::PublicClientWithWia
+                                $useDefaultCredentials = $true
+                            }
+                            else
+                            {
+                                throw New-Object System.PlatformNotSupportedException("WIA is only supported on Windows platform")
+                            }
                             break 
                         }
                         'DeviceCode' { 
                             $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
                             break
                         }
-                        'WAM' { 
-                            $flowType = [AuthenticationFlow]::PublicClientWithWam
-                            $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
-                            $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                        'WAM' {
+                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                            {
+                                $flowType = [AuthenticationFlow]::PublicClientWithWam
+                                $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
+                                $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                            }
+                            else
+                            {
+                                throw New-Object System.PlatformNotSupportedException("WAM is only supported on Windows platform")
+                            }
                             break
                         }
                         Default {

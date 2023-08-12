@@ -23,6 +23,8 @@ public static class ParentWindowHelper
     public static IntPtr GetConsoleOrTerminalWindow()
     {
         IntPtr consoleHandle = GetConsoleWindow();
+        if(null == consoleHandle)
+            throw new System.PlatformNotSupportedException("Could not get console window handle on this OS platform");
         IntPtr handle = GetAncestor(consoleHandle, GetAncestorFlags.GetRootOwner );
         
         return handle;
