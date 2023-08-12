@@ -10,7 +10,7 @@ function Init
         {
             'Core'
             {
-                $referencedAssemblies+="$PSHome\System.Net.Primitives.dll"
+                $referencedAssemblies+=[System.IO.Path]::Combine($PSHome,'System.Net.Primitives.dll')
                 $referencedAssemblies+="System.Net.WebProxy"
                 $referencedAssemblies+="System.Console"
                 
@@ -21,28 +21,30 @@ function Init
                 }
                 catch
                 {
-                    Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.IdentityModel.Abstractions.dll"
-                    Add-Type -Path "$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.IdentityModel.Abstractions.dll')))
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.Identity.Client.dll')))
                     #compiling http factory against our version
-                    $referencedAssemblies+="$PSScriptRoot\Shared\net6.0\Microsoft.Identity.Client.dll"
+                    $referencedAssemblies+=[System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.Identity.Client.dll'))
 
                 }
-
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+                #on Windows, load WAM broker
+                if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                 {
-                    Add-Type -Path "$PSScriptRoot\Shared\netstandard2.0\Microsoft.Identity.Client.Broker.dll"
-                    switch($env:PROCESSOR_ARCHITECTURE)
+                    if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                     {
-                        'AMD64' {$runtimePath = "$PSScriptRoot\Runtimes\win-x64\native"; break;}
-                        'ARM64' {$runtimePath = "$PSScriptRoot\Runtimes\win-arm64\native"; break;}
-                        'X86' {$runtimePath = "$PSScriptRoot\Runtimes\win-x86\native"; break;}
-                    }
-                    if(-not [string]::IsNullOrEmpty($runtimePath))
-                    {
-                        $env:Path = "$($env:Path);$runtimePath"
+                        Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
+                        switch($env:PROCESSOR_ARCHITECTURE)
+                        {
+                            'AMD64' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native')); break;}
+                            'ARM64' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native')); break;}
+                            'X86' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native')); break;}
+                        }
+                        if(-not [string]::IsNullOrEmpty($runtimePath))
+                        {
+                            $env:Path = "$($env:Path);$runtimePath"
+                        }
                     }
                 }
-
                 break;
             }
             'Desktop'
@@ -54,23 +56,27 @@ function Init
                 }
                 catch
                 {
-                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.IdentityModel.Abstractions.dll"
-                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
-                    $referencedAssemblies+="$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.dll"
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.IdentityModel.Abstractions.dll')))
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.dll')))
+                    $referencedAssemblies+=[System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.dll'))
                 }
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+                #on Windows, load WAM broker
+                if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                 {
-                    Add-Type -Path "$PSScriptRoot\Shared\net461\Microsoft.Identity.Client.Broker.dll"
-                    #need to add path to native runtime supporting the broker
-                    switch($env:PROCESSOR_ARCHITECTURE)
+                    if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                     {
-                        'AMD64' {$runtimePath = "$PSScriptRoot\Runtimes\win-x64\native"; break;}
-                        'ARM64' {$runtimePath = "$PSScriptRoot\Runtimes\win-arm64\native"; break;}
-                        'X86' {$runtimePath = "$PSScriptRoot\Runtimes\win-x86\native"; break;}
-                    }
-                    if(-not [string]::IsNullOrEmpty($runtimePath))
-                    {
-                        $env:Path = "$($env:Path);$runtimePath"
+                        Add-Type -Path [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.Broker.dll'))
+                        #need to add path to native runtime supporting the broker
+                        switch($env:PROCESSOR_ARCHITECTURE)
+                        {
+                            'AMD64' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native')); break;}
+                            'ARM64' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native')); break;}
+                            'X86' {$runtimePath = [System.IO.Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native')); break;}
+                        }
+                        if(-not [string]::IsNullOrEmpty($runtimePath))
+                        {
+                            $env:Path = "$($env:Path);$runtimePath"
+                        }
                     }
                 }
 

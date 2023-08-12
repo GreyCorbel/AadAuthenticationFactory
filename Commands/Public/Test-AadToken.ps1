@@ -82,6 +82,8 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
 
         Write-Verbose "Getting signing keys from $keysEndpoint"
         $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint
+        Write-Verbose "Received signing keys:"
+        Write-Verbose ($signingKeys | ConvertTo-Json -Depth 9)
 
         $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
         if($null -eq $key)
@@ -89,14 +91,9 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             Write-Warning "Could not find signing key with id = $($result.Header.kid) on endpoint $keysEndpoint"
             return $result
         }
+        Write-Verbose "Using key with kid: $($key.kid)"
 
         $rsa = $null
-        if($null -ne $key.x5c)
-        {
-            Write-Verbose "Getting public key from x5c: $($key.x5c)"
-            $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
-            $rsa = $cert.PublicKey.Key
-        }
         if($null -ne $key.e -and $null -ne $key.n)
         {
             Write-Verbose "Getting public key from modulus $($key.n) and exponent $($key.e)"
@@ -109,6 +106,14 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             $params.Exponent = $exponent
             $params.Modulus = $modulus
             $rsa.ImportParameters($params)
+        }
+        else {
+            if($null -ne $key.x5c)
+            {
+                Write-Verbose "Getting public key from x5c: $($key.x5c)"
+                $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
+                $rsa = $cert.PublicKey.Key
+            }    
         }
 
         if($null -eq $rsa)
