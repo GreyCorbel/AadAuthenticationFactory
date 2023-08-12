@@ -82,7 +82,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
 
         Write-Verbose "Getting signing keys from $keysEndpoint"
         $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint
-        Write-Verbose "Received signing keys:"
+        Write-Verbose "Received $($signingKeys.keys.count) signing keys:"
         Write-Verbose ($signingKeys | ConvertTo-Json -Depth 9)
 
         $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
