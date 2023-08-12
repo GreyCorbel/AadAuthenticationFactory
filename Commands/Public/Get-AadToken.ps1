@@ -74,6 +74,7 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     begin
     {
+        Write-Verbose "Initializing"
         [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
     }
     process
@@ -105,6 +106,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                 throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
             }
             $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
+            Write-Verbose "Getting token with assertion $($assertion.AssertionType) $($assertion.Assertion)"
             $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
         }
         else
@@ -115,11 +117,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClient) {
                     try
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token interactively"
                         $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -128,11 +132,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithWia) {
                     if($null -ne $Account)
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     else
                     {
+                        Write-Verbose "Getting token with explicit auth"
                         $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         #let the app throw to caller when UI required as the purpose here is to stay silent
@@ -140,7 +146,16 @@ Command shows how to get token as hashtable containing properly formatted Author
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithWam) {
-                    if($null -eq $Account -and [string]::IsNullOrEmpty($userName)) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
+                    if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
+                    {
+                        Write-Verbose "Getting token for OperatingSystemAccount"
+                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
+                    }
+                    else
+                    {
+                        Write-Verbose "Getting token for $userName"
+                    }
+
                     try
                     {
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
@@ -148,7 +163,9 @@ Command shows how to get token as hashtable containing properly formatted Author
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow([ParentWindowHelper]::GetConsoleOrTerminalWindow()).ExecuteAsync($cts.Token)
+                        $windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
+                        Write-Verbose "Falling back to browser auth with parent window hadle: $windowHandle"
+                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -156,11 +173,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithDeviceCode) {
                     try
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token with device code"
                         $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -172,17 +191,20 @@ Command shows how to get token as hashtable containing properly formatted Author
                         $creds = $factory.ResourceOwnerCredential
                         if($forceRefresh)
                         {
+                            Write-Verbose "Refreshing token with explicit credentials"
                             $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
                         else
                         {
+                            Write-Verbose "Getting token silently"
                             $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token with credentials"
                         $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -190,16 +212,19 @@ Command shows how to get token as hashtable containing properly formatted Author
                 }
                 ([AuthenticationFlow]::ConfidentialClient) {
 
+                    Write-Verbose "Getting token for confidentioal client"
                     $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
                 }
                 ([AuthenticationFlow]::ManagedIdentity) {
+                    Write-Verbose "Getting token for system-assigned MSI"
                     $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
                 }
                 ([AuthenticationFlow]::UserAssignedIdentity) {
+                    Write-Verbose "Getting token for user-assigned MSI"
                     $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
@@ -212,6 +237,7 @@ Command shows how to get token as hashtable containing properly formatted Author
 
         if($AsHashTable)
         {
+            Write-Verbose 'Converting token to authorization header'
             @{
                 'Authorization' = $rslt.CreateAuthorizationHeader()
             }
@@ -225,6 +251,7 @@ Command shows how to get token as hashtable containing properly formatted Author
     {
         if($null -ne $cts)
         {
+            Write-Verbose "Disposing resources"
             $cts.Dispose()
         }
     }

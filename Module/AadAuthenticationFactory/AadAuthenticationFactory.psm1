@@ -170,6 +170,7 @@ Command shows how to get token as hashtable containing properly formatted Author
 
     begin
     {
+        Write-Verbose "Initializing"
         [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(180))
     }
     process
@@ -201,6 +202,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                 throw (new-object System.ArgumentException("Unsupported authentication flow for on-behalf-of: $($Factory.FlowType)"))
             }
             $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
+            Write-Verbose "Getting token with assertion $($assertion.AssertionType) $($assertion.Assertion)"
             $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
         }
         else
@@ -211,11 +213,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClient) {
                     try
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token interactively"
                         $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -224,11 +228,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithWia) {
                     if($null -ne $Account)
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     else
                     {
+                        Write-Verbose "Getting token with explicit auth"
                         $task = $factory.AcquireTokenByIntegratedWindowsAuth($Scopes).WithUserName($UserName).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         #let the app throw to caller when UI required as the purpose here is to stay silent
@@ -236,7 +242,16 @@ Command shows how to get token as hashtable containing properly formatted Author
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithWam) {
-                    if($null -eq $Account -and [string]::IsNullOrEmpty($userName)) {$account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount}
+                    if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
+                    {
+                        Write-Verbose "Getting token for OperatingSystemAccount"
+                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
+                    }
+                    else
+                    {
+                        Write-Verbose "Getting token for $userName"
+                    }
+
                     try
                     {
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
@@ -244,7 +259,9 @@ Command shows how to get token as hashtable containing properly formatted Author
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
-                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow([ParentWindowHelper]::GetConsoleOrTerminalWindow()).ExecuteAsync($cts.Token)
+                        $windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
+                        Write-Verbose "Falling back to browser auth with parent window hadle: $windowHandle"
+                        $task = $factory.AcquireTokenInteractive($Scopes).WithAccount($account).WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -252,11 +269,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithDeviceCode) {
                     try
                     {
+                        Write-Verbose "Getting token for $($account.Username)"
                         $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token with device code"
                         $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -268,17 +287,20 @@ Command shows how to get token as hashtable containing properly formatted Author
                         $creds = $factory.ResourceOwnerCredential
                         if($forceRefresh)
                         {
+                            Write-Verbose "Refreshing token with explicit credentials"
                             $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
                         else
                         {
+                            Write-Verbose "Getting token silently"
                             $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
+                        Write-Verbose "Getting token with credentials"
                         $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -286,16 +308,19 @@ Command shows how to get token as hashtable containing properly formatted Author
                 }
                 ([AuthenticationFlow]::ConfidentialClient) {
 
+                    Write-Verbose "Getting token for confidentioal client"
                     $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
                 }
                 ([AuthenticationFlow]::ManagedIdentity) {
+                    Write-Verbose "Getting token for system-assigned MSI"
                     $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
                 }
                 ([AuthenticationFlow]::UserAssignedIdentity) {
+                    Write-Verbose "Getting token for user-assigned MSI"
                     $task = $Factory.AcquireTokenForManagedIdentity($scopes).WithForceRefresh($forceRefresh).ExecuteAsync()
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
@@ -308,6 +333,7 @@ Command shows how to get token as hashtable containing properly formatted Author
 
         if($AsHashTable)
         {
+            Write-Verbose 'Converting token to authorization header'
             @{
                 'Authorization' = $rslt.CreateAuthorizationHeader()
             }
@@ -321,6 +347,7 @@ Command shows how to get token as hashtable containing properly formatted Author
     {
         if($null -ne $cts)
         {
+            Write-Verbose "Disposing resources"
             $cts.Dispose()
         }
     }
@@ -662,6 +689,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             return
         }
         
+        Write-Verbose "Parsing the token"
         $result = [PSCustomObject]@{
             Header = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[0]))) | ConvertFrom-Json
             Payload = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[1]))) | ConvertFrom-Json
@@ -672,16 +700,19 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         if($null -eq $result.Payload.tfp)
         {
             #AAD token
+            Write-Verbose "It's standard AAD token"
             $endpoint = $result.Payload.iss.Replace('/v2.0','')
             $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
         }
         else
         {
             #AAD B2C token
+            Write-Verbose "It's B2C token"
             $endpoint = $result.Payload.iss.Replace('/v2.0/','')
             $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
         }
 
+        Write-Verbose "Getting signing keys from $keysEndpoint"
         $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint
 
         $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
@@ -694,11 +725,13 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         $rsa = $null
         if($null -ne $key.x5c)
         {
+            Write-Verbose "Getting public key from x5c: $($key.x5c)"
             $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
             $rsa = $cert.PublicKey.Key
         }
         if($null -ne $key.e -and $null -ne $key.n)
         {
+            Write-Verbose "Getting public key from modulus $($key.n) and exponent $($key.e)"
             $exponent = Base64UrlDecode -data $key.e
             $exponent = [convert]::FromBase64String($exponent)
             $modulus = Base64UrlDecode -data $key.n
@@ -716,6 +749,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             return $result
         }
 
+        Write-Verbose "Creating payload to validate"
         $payload = "$($parts[0]).$($parts[1])"
         $dataToVerify = [System.Text.Encoding]::UTF8.GetBytes($payload)
         $sig = Base64UrlDecode -Data $parts[2]
@@ -737,6 +771,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             }
         }
         $padding = [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+        Write-Verbose "Validating payload"
         $result.IsValid = $rsa.VerifyData($dataToVerify,$signature,$hash,$Padding)
         if($null -ne $cert) {$cert.Dispose()}
         if($null -ne $result.Header.nonce)
