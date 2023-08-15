@@ -93,6 +93,29 @@ Returns all accounts from factory cache that match pattern 'John'.
         }
     }
 }
+function Get-AadDefaultClientId
+{
+    <#
+.SYNOPSIS
+    Returns default AAD client ID used by module, which is client id for Azure Powershell
+
+.DESCRIPTION
+    Returns default AAD client ID used by module, which is client id for Azure Powershell
+
+.OUTPUTS
+    Default client id used by module
+
+#>
+    [CmdletBinding()]
+    param
+    ( )
+
+    process
+    {
+        $module = $MyInvocation.MyCommand.Module
+        $Module.PrivateData.Configuration.DefaultClientId
+    }
+}
 function Get-AadToken
 {
     <#
@@ -494,13 +517,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
 
     process
     {
-        $ModuleManifest = Import-PowershellDataFile $PSCommandPath.Replace('.psm1', '.psd1')
-        $moduleName = [system.io.path]::GetFileNameWithoutExtension($PSCommandPath)
-        $moduleVersion = $moduleManifest.ModuleVersion
-        if($null -ne $ModuleManifest.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($ModuleManifest.privatedata.psdata.Prerelease)"}
+        $module = $MyInvocation.MyCommand.Module
+        $moduleName = $module.Name
+
+        $moduleVersion = $module.Version
+        if($null -ne $Module.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($Module.privatedata.psdata.Prerelease)"}
 
         $useDefaultCredentials = $false
-        if([string]::IsNullOrWhiteSpace($clientId)) {$clientId = $ModuleManifest.PrivateData.Configuration.DefaultClientId}
+        if([string]::IsNullOrWhiteSpace($clientId)) {$clientId = (Get-AadDefaultClientId)}
 
         if([string]::IsNullOrEmpty($B2CPolicy))
         {
@@ -643,8 +667,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
         | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru `
-        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
-        | Add-Member -MemberType NoteProperty -Name UsesDefaultClientId -Value ($ClientId -eq $ModuleManifest.PrivateData.Configuration.DefaultClientId) -PassThru
+        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
 
         #Give the factory common type name for formatting
         $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
