@@ -443,7 +443,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [string]
             #ClientId of application that gets token
             #Default: well-known clientId for Azure PowerShell
-        $ClientId,
+        $ClientId = (Get-AadDefaultClientId),
 
         [Parameter()]
         [Uri]
@@ -524,7 +524,6 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         if($null -ne $Module.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($Module.privatedata.psdata.Prerelease)"}
 
         $useDefaultCredentials = $false
-        if([string]::IsNullOrWhiteSpace($clientId)) {$clientId = (Get-AadDefaultClientId)}
 
         if([string]::IsNullOrEmpty($B2CPolicy))
         {
@@ -639,7 +638,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 break;
             }
             'MSI' {
-                if($clientId -eq $ModuleManifest.PrivateData.Configuration.DefaultClientId)
+                if($clientId -eq (Get-AadDefaultClientId))
                 {
                     $managedIdentityId = [Microsoft.Identity.Client.AppConfig.ManagedIdentityId]::SystemAssigned
                     $flowType = [AuthenticationFlow]::ManagedIdentity
@@ -658,7 +657,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             }
         }
         #crate factory and add to builder
-        $httpFactory = [GcMsalHttpClientFactory]::Create($proxy,$moduleManifest.ModuleVersion,$useDefaultCredentials)
+        $httpFactory = [GcMsalHttpClientFactory]::Create($proxy,$ModuleVersion,$useDefaultCredentials)
         $builder = $builder.WithHttpClientFactory($httpFactory)
 
         #build the app and add processing info
