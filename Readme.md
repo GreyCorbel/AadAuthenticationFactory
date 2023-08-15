@@ -1,8 +1,12 @@
 # AadAuthenticationFactory
 This module provides unified experience for getting and using tokens from Azure AD authentication platform. Experience covers this authentication scenarios:
-  - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based interactive authentication, or Device code authentication
+  - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based Interactive authentication, Device code authentication, Resource Owner credentials, Windows integrated authentication (supports ADFS-federated tenants) and WAM (authentication with Windows broker)
   - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate
   - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
+
+Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows and MacOS, and Linux.
+
+_Note_: Some authentication methods are not available in all scenarios (e.g. WAM and Windows integrated authentication only work on Windows)
 
 Module comes with commands:
 
@@ -11,6 +15,7 @@ Module comes with commands:
 |New-AadAuthenticationFactory | Creates factory responsible for issuing of AAD tokens for given resource, using given authentication flow|
 |Get-AAdToken|Tells the factory to create a token. Factory returns cached token, if available, and takes care of token renewals silently whenever possible, after tokens expire|
 |Test-AadToken|Parses Access token or Id token and validates it against published keys. Provides PowerShell way of showing token content as available in http://jwt.ms|
+|Get-AadDefaultClientId|Returns default client id used by module when client id not specified in New-AadAuthenticationFactory command|
 
 Module is usable two ways:
 - as standalone module to provide Azure tokens ad-hoc or in scripts
@@ -140,4 +145,26 @@ $backendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty pay
 #observe claims in Id token for frontend app
 $backendAppToken.IdToken | Test-AadToken | Select-Object -ExpandProperty payload
 
+```
+
+## WAM based authentication
+This option provides transparent SSO with currently logged-in user account.
+
+```powershell
+New-AadAuthenticationFactory -TenantId 'mytenant.com' -AuthMode WAM
+Get-AadToken -Scopes 'https://management.azure.net/.default' | Test-AadToken -PayloadOnly
+```
+
+## Login to B2C tenant
+This option provides option to get AAD token usable to authenticate with applications integrated with B2C tenant
+
+```powershell
+$myB2CTenant = 'https://myb2ctenant.onmicrosoft.com'
+$myB2CClientId = 'd01734f1-2a3f-452e-ad42-8ffe7ae300bf'
+$myB2CClientRedirectUri = 'http://localhost:44351/'
+$myB2CAPI = "$myB2CTenant/13e25c85-a23a-4858-b988-4f171265a92d"
+$myB2CLoginApi = " https://myb2ctenant.b2clogin.com"
+
+New-AadAuthenticationFactory -ClientId $myB2CClientId -TenantId $myB2CTenant -AuthMode Interactive -B2CPolicy 'B2C_1_sisi' -LoginApi $myB2CLoginApi -RedirectUri $myB2CClientRedirectUri
+Get-AadToken -Scopes "$myB2CAPI/.default" | Test-AadToken -Verbose
 ```

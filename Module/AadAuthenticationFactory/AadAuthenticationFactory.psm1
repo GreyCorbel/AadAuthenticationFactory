@@ -719,11 +719,43 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
     {
         if($token -is [Microsoft.Identity.Client.AuthenticationResult])
         {
-            $Token = $Token.AccessToken
+            if($null -ne $token.AccessToken)
+            {
+                Write-Verbose 'Using AccessToken from provided token'
+                $Token = $Token.AccessToken
+            }
+            else
+            {
+                if($null -ne $token.IdToken)
+                {
+                    Write-Verbose 'Using IdToken from provided token'
+                    $Token = $Token.IdToken
+                }
+                else
+                {
+                    Write-Error 'Invalid format of provided token'
+                    return
+                }
+            }
         }
-        if($token -is [System.Collections.Hashtable])
+        else
         {
-            $token = $token['Authorization'].Replace('Bearer ','')
+            if($token -is [System.Collections.Hashtable])
+            {
+                if($null -ne $token['Authorization'])
+                {
+                    Write-Verbose 'Using AccessToken from provided hashtable'
+                    $token = $token['Authorization'].Replace('Bearer ','')
+                }
+                else
+                {
+                    Write-Error 'Provided hashtable does not contain Authorization key'
+                }
+            }
+            else
+            {
+                Write-Verbose 'Using provided plaintext token'
+            }
         }
         $parts = $token.split('.')
         if($parts.Length -ne 3)
