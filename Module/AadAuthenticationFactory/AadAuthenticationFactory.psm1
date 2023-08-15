@@ -643,7 +643,8 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
         | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru `
-        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
+        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
+        | Add-Member -MemberType NoteProperty -Name UsesDefaultClientId -Value ($ClientId -eq $ModuleManifest.PrivateData.Configuration.DefaultClientId) -PassThru
 
         #Give the factory common type name for formatting
         $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
