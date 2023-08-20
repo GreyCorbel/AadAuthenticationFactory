@@ -317,7 +317,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                         if($forceRefresh)
                         {
                             Write-Verbose "Refreshing token with explicit credentials"
-                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password).ExecuteAsync()
                             $rslt = $task | AwaitTask -CancellationTokenSource $cts
                         }
                         else
@@ -330,7 +330,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         Write-Verbose "Getting token with credentials"
-                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $UserName, $creds.GetNetworkCredential().Password).WithPrompt('ForceLogin').ExecuteAsync()
+                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password).ExecuteAsync()
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
