@@ -10,7 +10,7 @@ function Init
         {
             'Core'
             {
-                $referencedAssemblies+=[System.IO.Path]::Combine($PSHome,'System.Net.Primitives.dll')
+                $referencedAssemblies+="System.Net.Primitives"
                 $referencedAssemblies+="System.Net.WebProxy"
                 $referencedAssemblies+="System.Console"
                 

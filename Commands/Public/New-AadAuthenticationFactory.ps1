@@ -255,7 +255,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 break;
             }
             'MSI' {
-                if($clientId -eq (Get-AadDefaultClientId))
+                if($clientId -eq (Get-AadDefaultClientId) -or [string]::IsNullOrEmpty($clientId))
                 {
                     $managedIdentityId = [Microsoft.Identity.Client.AppConfig.ManagedIdentityId]::SystemAssigned
                     $flowType = [AuthenticationFlow]::ManagedIdentity
