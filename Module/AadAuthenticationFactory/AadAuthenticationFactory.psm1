@@ -443,7 +443,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [string]
             #ClientId of application that gets token
             #Default: well-known clientId for Azure PowerShell
-        $ClientId = (Get-AadDefaultClientId),
+        $ClientId,
 
         [Parameter()]
         [Uri]
@@ -524,6 +524,12 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         if($null -ne $Module.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($Module.privatedata.psdata.Prerelease)"}
 
         $useDefaultCredentials = $false
+
+        $defaultClientId = Get-AadDefaultClientId
+        if([string]::IsNullOrEmpty($ClientId))
+        {
+            $ClientId = $defaultClientId
+        }
 
         if([string]::IsNullOrEmpty($B2CPolicy))
         {
@@ -638,7 +644,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 break;
             }
             'MSI' {
-                if($clientId -eq (Get-AadDefaultClientId))
+                if($clientId -eq $defaultClientId)
                 {
                     $managedIdentityId = [Microsoft.Identity.Client.AppConfig.ManagedIdentityId]::SystemAssigned
                     $flowType = [AuthenticationFlow]::ManagedIdentity
