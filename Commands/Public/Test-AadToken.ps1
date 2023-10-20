@@ -113,7 +113,13 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         }
 
         Write-Verbose "Getting signing keys from $keysEndpoint"
-        $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint
+        try {
+            $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Could not get signing keys from endpoint $keysEndpoint"
+            return $result
+        }
         Write-Verbose "Received $($signingKeys.keys.count) signing keys:"
         Write-Verbose ($signingKeys | ConvertTo-Json -Depth 9)
 
