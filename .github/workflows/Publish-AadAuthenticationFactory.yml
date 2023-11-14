@@ -50,7 +50,7 @@ jobs:
         
       run: |
         $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
-        Write-Host "url:" ${{ variables.CODESIGNING_KEYVAULTURI }}
+        Write-Host "url:" ${{ CODESIGNING_KEYVAULTURI }}
         Write-Host "clientId:" $env:TENANTINTEGRATION_CLIENTID
         Write-Host "tenant:" $env:TENANTINTEGRATION_TENANTID
         Write-Host "secret:" ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }}
