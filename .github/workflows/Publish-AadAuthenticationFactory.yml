@@ -36,14 +36,12 @@ jobs:
 
     - name: Install AzureSignTool
       shell: pwsh
-      if: ${{ github.event_name != 'workflow_dispatch' }}
       run: |
         dotnet tool install --global AzureSignTool
       
   
     - name: Sign files
       shell: pwsh
-      if: ${{ github.event_name != 'workflow_dispatch' }}
       run: |
         $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
         try {
