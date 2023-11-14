@@ -33,35 +33,31 @@ jobs:
         "Setting up packages"
         &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE" -NugetPath $env:nuget
 
+
+    - name: Install AzureSignTool
+      shell: pwsh
+      if: ${{ github.event_name != 'workflow_dispatch' }}
+      run: |
+        dotnet tool install --global AzureSignTool
       
+  
     - name: Sign files
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
-      env:
-        CERTPASS: ${{secrets.GC_SIGNING_CERT_PASSWORD}}
-        SIGNCERT: ${{secrets.GC_SIGNING_CERT}}
       run: |
-        try
-        {
-          $buffer = [System.Convert]::FromBase64String($env:SIGNCERT)
-          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::New($buffer, $env:CERTPASS)
-          #sign powershell files
-          Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" `
-            -File `
-            -Recurse `
-            -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml `
-          | Set-AuthenticodeSignature `
-              -HashAlgorithm SHA256 `
-              -Certificate $certificate `
-              -TimestampServer http://timestamp.digicert.com  `
-          | Select-Object Path,Status `
-          | Format-List
+        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
+        try {
+            foreach ($file in $files) {
+                azuresigntool sign -kvu ${{github.CODESIGNING_KEYVAULTURI}} -kvi ${{github.TENANTINTEGRATION_CLIENTID}} -kvt ${{github.TENANTINTEGRATION_TENANTID}} -kvs ${{secrets.TENANTINTEGRATION_CLIENTSECRET}} -kvc ${{github.CODESIGNING_CERTNAME}} -v "$($file.FullName)" 
+            }
         }
-        catch
-        {
-          Write-Host "Error: $($_.Exception)"
-          throw
+        catch {
+            Write-Host "Error: $($_.Exception)"
+            throw
         }
+        Write-Host "Signed files summary:"
+        Get-AuthenticodeSignature -FilePath $files
+        
 
     - name: Publish
       #Publish to PS Gallery
