@@ -42,22 +42,11 @@ jobs:
   
     - name: Sign files
       shell: pwsh
-      env: 
-        CODESIGNING_KEYVAULTURI: ${{ github.CODESIGNING_KEYVAULTURI }}
-        TENANTINTEGRATION_CLIENTID: ${{ github.TENANTINTEGRATION_CLIENTID }}
-        TENANTINTEGRATION_TENANTID: ${{ github.TENANTINTEGRATION_TENANTID }}
-        CODESIGNING_CERTNAME: ${{ github.CODESIGNING_CERTNAME }}
-        
       run: |
         $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
-        Write-Host "url:" ${{ vars.CODESIGNING_KEYVAULTURI }}
-        Write-Host "clientId:" $env:TENANTINTEGRATION_CLIENTID
-        Write-Host "tenant:" $env:TENANTINTEGRATION_TENANTID
-        Write-Host "secret:" ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }}
-        Write-Host "certName:" $env:CODESIGNING_CERTNAME
         try {
             foreach ($file in $files) {
-                azuresigntool sign -kvu $env:CODESIGNING_KEYVAULTURI -kvi $env:TENANTINTEGRATION_CLIENTID -kvt $env:TENANTINTEGRATION_TENANTID -kvs ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }} -kvc $env:CODESIGNING_CERTNAME -v "$($file.FullName)" 
+                azuresigntool sign -kvu ${{ vars.CODESIGNING_KEYVAULTURI }} -kvi ${{ vars.TENANTINTEGRATION_CLIENTID }} -kvt ${{ vars.TENANTINTEGRATION_TENANTID }} -kvs ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }} -kvc ${{ vars.CODESIGNING_CERTNAME }} -v "$($file.FullName)" 
             }
         }
         catch {
