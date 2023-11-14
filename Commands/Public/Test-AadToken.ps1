@@ -96,107 +96,113 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             IsValid = $false
         }
 
-        #validate the result using published keys
-        if($null -eq $result.Payload.tfp)
-        {
-            #AAD token
-            Write-Verbose "It's standard AAD token"
-            $endpoint = $result.Payload.iss.Replace('/v2.0','')
-            $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
-        }
-        else
-        {
-            #AAD B2C token
-            Write-Verbose "It's B2C token"
-            $endpoint = $result.Payload.iss.Replace('/v2.0/','')
-            $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
-        }
-
-        Write-Verbose "Getting signing keys from $keysEndpoint"
+        #validate the token
         try {
-            $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop
-        }
-        catch {
-            Write-Warning "Could not get signing keys from endpoint $keysEndpoint"
-            return $result
-        }
-        Write-Verbose "Received $($signingKeys.keys.count) signing keys:"
-        Write-Verbose ($signingKeys | ConvertTo-Json -Depth 9)
-
-        $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
-        if($null -eq $key)
-        {
-            Write-Warning "Could not find signing key with id = $($result.Header.kid) on endpoint $keysEndpoint"
-            return $result
-        }
-        Write-Verbose "Using key with kid: $($key.kid)"
-
-        $rsa = $null
-        if($null -ne $key.e -and $null -ne $key.n)
-        {
-            Write-Verbose "Getting public key from modulus $($key.n) and exponent $($key.e)"
-            $exponent = Base64UrlDecode -data $key.e
-            $exponent = [convert]::FromBase64String($exponent)
-            $modulus = Base64UrlDecode -data $key.n
-            $modulus = [convert]::FromBase64String($modulus)
-            $rsa = new-object System.Security.Cryptography.RSACryptoServiceProvider
-            $params = new-object System.Security.Cryptography.RSAParameters
-            $params.Exponent = $exponent
-            $params.Modulus = $modulus
-            $rsa.ImportParameters($params)
-        }
-        else {
-            if($null -ne $key.x5c)
+            #validate the result using published keys
+            if($null -eq $result.Payload.tfp)
             {
-                Write-Verbose "Getting public key from x5c: $($key.x5c)"
-                $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
-                $rsa = $cert.PublicKey.Key
-            }    
-        }
-
-        if($null -eq $rsa)
-        {
-            Write-Warning "Could not validate the token as both x5c and n/e information is missing"
-            return $result
-        }
-
-        Write-Verbose "Creating payload to validate"
-        $payload = "$($parts[0]).$($parts[1])"
-        $dataToVerify = [System.Text.Encoding]::UTF8.GetBytes($payload)
-        $sig = Base64UrlDecode -Data $parts[2]
-        $signature = [Convert]::FromBase64String($sig)
-
-        switch($result.Header.alg)
-        {
-            'RS384' {
-                $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA384
-                break;
+                #AAD token
+                Write-Verbose "It's standard AAD token"
+                $endpoint = $result.Payload.iss.Replace('/v2.0','')
+                $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
             }
-            'RS512' {
-                $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA512
-                break;
+            else
+            {
+                #AAD B2C token
+                Write-Verbose "It's B2C token"
+                $endpoint = $result.Payload.iss.Replace('/v2.0/','')
+                $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
             }
-            default {
-                $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA256
-                break;
+    
+            Write-Verbose "Getting signing keys from $keysEndpoint"
+            try {
+                $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop
             }
+            catch {
+                Write-Warning "Could not get signing keys from endpoint $keysEndpoint"
+                return
+            }
+            Write-Verbose "Received $($signingKeys.keys.count) signing keys:"
+            Write-Verbose ($signingKeys | ConvertTo-Json -Depth 9)
+    
+            $key = $signingKeys.keys | Where-object{$_.kid -eq $result.Header.kid}
+            if($null -eq $key)
+            {
+                Write-Warning "Could not find signing key with id = $($result.Header.kid) on endpoint $keysEndpoint"
+                return
+            }
+            Write-Verbose "Using key with kid: $($key.kid)"
+    
+            $rsa = $null
+            if($null -ne $key.e -and $null -ne $key.n)
+            {
+                Write-Verbose "Getting public key from modulus $($key.n) and exponent $($key.e)"
+                $exponent = Base64UrlDecode -data $key.e
+                $exponent = [convert]::FromBase64String($exponent)
+                $modulus = Base64UrlDecode -data $key.n
+                $modulus = [convert]::FromBase64String($modulus)
+                $rsa = new-object System.Security.Cryptography.RSACryptoServiceProvider
+                $params = new-object System.Security.Cryptography.RSAParameters
+                $params.Exponent = $exponent
+                $params.Modulus = $modulus
+                $rsa.ImportParameters($params)
+            }
+            else {
+                if($null -ne $key.x5c)
+                {
+                    Write-Verbose "Getting public key from x5c: $($key.x5c)"
+                    $cert = new-object System.Security.Cryptography.X509Certificates.X509Certificate2(,[Convert]::FromBase64String($key.x5c[0]))
+                    $rsa = $cert.PublicKey.Key
+                }    
+            }
+    
+            if($null -eq $rsa)
+            {
+                Write-Warning "Could not validate the token as both x5c and n/e information is missing"
+                return
+            }
+    
+            Write-Verbose "Creating payload to validate"
+            $payload = "$($parts[0]).$($parts[1])"
+            $dataToVerify = [System.Text.Encoding]::UTF8.GetBytes($payload)
+            $sig = Base64UrlDecode -Data $parts[2]
+            $signature = [Convert]::FromBase64String($sig)
+    
+            switch($result.Header.alg)
+            {
+                'RS384' {
+                    $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA384
+                    break;
+                }
+                'RS512' {
+                    $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA512
+                    break;
+                }
+                default {
+                    $hash = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+                    break;
+                }
+            }
+            $padding = [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+            Write-Verbose "Validating payload"
+            $result.IsValid = $rsa.VerifyData($dataToVerify,$signature,$hash,$Padding)
+            if($null -ne $cert) {$cert.Dispose()}
+            if($null -ne $result.Header.nonce)
+            {
+                Write-Verbose "Header contains nonce, so token may not be properly validated. See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609"
+            }
+            $result.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.TokenValidationResult')
         }
-        $padding = [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
-        Write-Verbose "Validating payload"
-        $result.IsValid = $rsa.VerifyData($dataToVerify,$signature,$hash,$Padding)
-        if($null -ne $cert) {$cert.Dispose()}
-        if($null -ne $result.Header.nonce)
+        finally
         {
-            Write-Verbose "Header contains nonce, so token may not be properly validated. See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609"
-        }
-        $result.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.TokenValidationResult')
-        if($PayloadOnly)
-        {
-            $result.Payload
-        }
-        else
-        {
-            $result
+            if($PayloadOnly)
+            {
+                $result.Payload
+            }
+            else
+            {
+                $result
+            }
         }
     }
 }
