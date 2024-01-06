@@ -33,10 +33,11 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
     param (
         [Parameter(Mandatory,ValueFromPipeline)]
         [object]
-        #IdToken or AccessToken field from token returned by Get-AadToken
-        #or complete result of Get-AadToken - in such case, AccessToken is examined
+            #IdToken or AccessToken field from token returned by Get-AadToken
+            #or complete result of Get-AadToken - in such case, AccessToken is examined
         $Token,
         [switch]
+            #Causes to retun just parsed payload of token - contains list of claims
         $PayloadOnly
     )
 
