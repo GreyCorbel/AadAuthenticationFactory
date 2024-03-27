@@ -4,7 +4,7 @@ This module provides unified experience for getting and using tokens from Azure 
   - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate
   - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
 
-Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows and MacOS, and Linux.
+Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows (PS Desktop and Core), MacOS and Linux.
 
 _Note_: Some authentication methods are not available in all scenarios (e.g. WAM and Windows integrated authentication only work on Windows)
 

@@ -53,7 +53,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(Mandatory,ParameterSetName = 'ResourceOwnerPasssword')]
         [string]
             #Id of tenant where to autenticate the user. Can be tenant id, or any registerd DNS domain
-            #You can also use AAD placeholder: organizations, common, consumers
+            #You can also use one of AAD placeholders: organizations, common, consumers
         $TenantId,
 
         [Parameter()]
@@ -122,14 +122,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
 
         [Parameter(ParameterSetName = 'MSI')]
         [Switch]
-            #tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
+            #Tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
         $UseManagedIdentity,
 
         [Parameter()]
         [System.Net.WebProxy]
             #Web proxy configuration
             #Optional
-        $proxy = $null
+        $Proxy = $null
     )
 
     process
