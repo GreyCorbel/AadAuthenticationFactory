@@ -96,6 +96,12 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             IsValid = $false
         }
 
+        if($null -eq $result.Payload.iss)
+        {
+            Write-Warning "Token does not contain issuer information --> most likely not valid AAD token. Cannot perform token validation against issuer's signature"
+            return
+        }
+
         #validate the token
         try {
             #validate the result using published keys
