@@ -89,20 +89,15 @@ function Init
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        #check if we need to load or already loaded
-        if($null -eq ('GcMsalHttpClientFactory' -as [type])) {
-            $httpFactoryDefinition = Get-Content "$PSScriptRoot\Helpers\GcMsalHttpClientFactory.cs" -Raw
-            Add-Type -TypeDefinition $httpFactoryDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-        }
-        if($null -eq ('DeviceCodeHandler' -as [type])) {
-            #check if we need to load or already loaded
-            $deviceCodeHandlerDefinition = Get-Content "$PSScriptRoot\Helpers\DeviceCodeHandler.cs" -Raw
-            Add-Type -TypeDefinition $deviceCodeHandlerDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-        }
-        if($null -eq ('ParentWindowHelper' -as [type])) {
-            #check if we need to load or already loaded
-            $parentWindowHelperDefinition = Get-Content "$PSScriptRoot\Helpers\ParentWindowHelper.cs" -Raw
-            Add-Type -TypeDefinition $parentWindowHelperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+        #Add JIT compiled helpers. Load only if not loaded previously
+        $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
+        foreach($helper in $helpers)
+        {
+            if($null -eq ($helper -as [type]))
+            {
+                $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
+                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+            }
         }
     }
 }
