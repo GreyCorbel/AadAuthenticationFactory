@@ -458,7 +458,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(Mandatory,ParameterSetName = 'ResourceOwnerPasssword')]
         [string]
             #Id of tenant where to autenticate the user. Can be tenant id, or any registerd DNS domain
-            #You can also use AAD placeholder: organizations, common, consumers
+            #You can also use one of AAD placeholders: organizations, common, consumers
         $TenantId,
 
         [Parameter()]
@@ -527,14 +527,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
 
         [Parameter(ParameterSetName = 'MSI')]
         [Switch]
-            #tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
+            #Tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
         $UseManagedIdentity,
 
         [Parameter()]
         [System.Net.WebProxy]
             #Web proxy configuration
             #Optional
-        $proxy = $null
+        $Proxy = $null
     )
 
     process
@@ -736,10 +736,11 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
     param (
         [Parameter(Mandatory,ValueFromPipeline)]
         [object]
-        #IdToken or AccessToken field from token returned by Get-AadToken
-        #or complete result of Get-AadToken - in such case, AccessToken is examined
+            #IdToken or AccessToken field from token returned by Get-AadToken
+            #or complete result of Get-AadToken - in such case, AccessToken is examined
         $Token,
         [switch]
+            #Causes to retun just parsed payload of token - contains list of claims
         $PayloadOnly
     )
 
@@ -799,14 +800,14 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             IsValid = $false
         }
 
-        if($null -eq $result.Payload.iss)
-        {
-            Write-Warning "Token does not contain issuer information --> most likely not valid AAD token. Cannot perform token validation against issuer's signature"
-            return
-        }
-
-        #validate the token
         try {
+            if($null -eq $result.Payload.iss)
+            {
+                Write-Warning "Token does not contain issuer information --> most likely not valid AAD token. Cannot perform token validation against issuer's signature"
+                return
+            }
+            #validate the token
+
             #validate the result using published keys
             if($null -eq $result.Payload.tfp)
             {
@@ -1085,20 +1086,15 @@ function Init
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        #check if we need to load or already loaded
-        if($null -eq ('GcMsalHttpClientFactory' -as [type])) {
-            $httpFactoryDefinition = Get-Content "$PSScriptRoot\Helpers\GcMsalHttpClientFactory.cs" -Raw
-            Add-Type -TypeDefinition $httpFactoryDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-        }
-        if($null -eq ('DeviceCodeHandler' -as [type])) {
-            #check if we need to load or already loaded
-            $deviceCodeHandlerDefinition = Get-Content "$PSScriptRoot\Helpers\DeviceCodeHandler.cs" -Raw
-            Add-Type -TypeDefinition $deviceCodeHandlerDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-        }
-        if($null -eq ('ParentWindowHelper' -as [type])) {
-            #check if we need to load or already loaded
-            $parentWindowHelperDefinition = Get-Content "$PSScriptRoot\Helpers\ParentWindowHelper.cs" -Raw
-            Add-Type -TypeDefinition $parentWindowHelperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+        #Add JIT compiled helpers. Load only if not loaded previously
+        $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
+        foreach($helper in $helpers)
+        {
+            if($null -eq ($helper -as [type]))
+            {
+                $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
+                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+            }
         }
     }
 }
