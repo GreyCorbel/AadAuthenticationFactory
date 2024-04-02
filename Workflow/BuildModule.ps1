@@ -1,8 +1,16 @@
 param
 (
-    [string]$rootPath = '.'
+    [string]$rootPath = '.',
+    [string]$moduleName
 )
-$moduleFile = "$rootPath\Module\AadAuthenticationFactory\AadAuthenticationFactory.psm1"
+
+if([string]::IsNullOrWhiteSpace($moduleName))
+{
+    Write-Error 'Module name must be provided'
+    return
+}
+
+$moduleFile = "$rootPath\Module\$moduleName\$moduleName.psm1"
 '#region Public commands' | Out-File -FilePath $moduleFile
 foreach($file in Get-ChildItem -Path "$rootPath\Commands\Public")
 {
@@ -17,6 +25,9 @@ foreach($file in Get-ChildItem -Path "$rootPath\Commands\Internal")
 }
 '#endregion Internal commands' | Out-File -FilePath $moduleFile -Append
 
-'#region Module initialization' | Out-File -FilePath $moduleFile -Append
-Get-Content "$rootPath\Commands\ModuleInitialization.ps1" | Out-File -FilePath $moduleFile -Append
-'#endregion Module initialization' | Out-File -FilePath $moduleFile -Append
+if(Test-Path "$rootPath\Commands\ModuleInitialization.ps1")
+{
+    '#region Module initialization' | Out-File -FilePath $moduleFile -Append
+    Get-Content "$rootPath\Commands\ModuleInitialization.ps1" | Out-File -FilePath $moduleFile -Append
+    '#endregion Module initialization' | Out-File -FilePath $moduleFile -Append
+}

@@ -14,6 +14,8 @@ jobs:
   publishToGallery:
     # The type of runner that the job will run on
     runs-on: windows-latest
+    env: 
+        MODULE_NAME: AadAuthenticationFactory
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -27,9 +29,10 @@ jobs:
       shell: pwsh
       run: |
         "Copying license file"
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory\LICENSE.txt" -Force
+        $moduleName = $env:MODULE_NAME
+        Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\$moduleName\LICENSE.txt" -Force
         "Building module"
-        &"$env:GITHUB_WORKSPACE\Workflow\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE"
+        &"$env:GITHUB_WORKSPACE\Workflow\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE" -ModuleName $moduleName
         "Setting up packages"
         &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE" -NugetPath $env:nuget
 
@@ -41,7 +44,7 @@ jobs:
     - name: Sign files
       shell: pwsh
       run: |
-        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
+        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
         try {
             foreach ($file in $files) {
                 azuresigntool sign `
@@ -68,12 +71,12 @@ jobs:
       env:
         SECRET: ${{ secrets.PSGallery_APIKey }}
       run: |
-        write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory"
+        write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME"
         try
         {
           $env:PSModulePath = "$env:PSModulePath;$env:GITHUB_WORKSPACE\Module"
           "PSModulePath: $env:PSModulePath"
-          Publish-Module -Path "$env:GITHUB_WORKSPACE\Module\AadAuthenticationFactory" -NuGetApiKey "$env:SECRET"
+          Publish-Module -Path "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -NuGetApiKey "$env:SECRET"
         }
         catch
         {
