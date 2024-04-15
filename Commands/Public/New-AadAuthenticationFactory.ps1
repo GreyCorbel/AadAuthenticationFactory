@@ -47,6 +47,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Scopes to ask token for
         $DefaultScopes,
 
+        [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(Mandatory,ParameterSetName = 'PublicClient')]
@@ -87,6 +88,13 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Used to get access as application rather than as calling user
         $X509Certificate,
 
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
+        [string]
+            #Client assertion - JWT token created by external identity provider
+            #Used to authenticate with federated identity
+        $Assertion,
+
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
@@ -96,6 +104,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Default: endpoint for public cloud
         $LoginApi = 'https://login.microsoftonline.com',
         
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
@@ -158,7 +167,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         #setup of common options
         switch($PSCmdlet.ParameterSetName)
         {
-            {$_ -in 'ConfidentialClientWithSecret','ConfidentialClientWithCertificate'} {
+            {$_ -in 'ConfidentialClientWithSecret','ConfidentialClientWithCertificate','ConfidentialClientWithAssertion'} {
                 $opts = new-object Microsoft.Identity.Client.ConfidentialClientApplicationOptions
                 $opts.ClientId = $clientId
                 $opts.clientName = $moduleName
@@ -173,10 +182,15 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     $builder = $builder.WithClientSecret($ClientSecret)
                 }
+                elseif($_ -eq 'ConfidentialClientWithAssertion')
+                {
+                    $builder = $builder.WithClientAssertion($Assertion)
+                }
                 else
                 {
                     $builder = $builder.WithCertificate($X509Certificate)
                 }
+                
                 if([string]::IsNullOrEmpty($B2CPolicy))
                 {
                     $builder = $builder.WithAuthority($AuthorityUri)
