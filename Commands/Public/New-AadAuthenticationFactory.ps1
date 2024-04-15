@@ -111,7 +111,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
         [string]
             #Name of the B2C policy to use for login
-            #Specifying this parameter means that you want to use B2B logig and expects you to provide B2C tenant name in tenant ID
+            #Specifying this parameter means that you want to use B2B login and expects you to provide B2C tenant name in tenant ID
             #Default: endpoint for public cloud
         $B2CPolicy,
 

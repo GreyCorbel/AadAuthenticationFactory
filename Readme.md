@@ -155,11 +155,27 @@ New-AadAuthenticationFactory -TenantId 'mytenant.com' -AuthMode WAM
 Get-AadToken -Scopes 'https://management.azure.net/.default' | Test-AadToken -PayloadOnly
 ```
 
+## Login with federated credentials
+This option allows passing JWT token obtained from federated identity provider and use it to get AAD token via federated credentials.
+For real-life usage, see [azure-automation-devops-integration](https://github.com/GreyCorbel/azure-automation-devops-integration) repo, where we use this approach to exchange Azure DevOps JWT token for AAD token to manage Azure Automation account. Code to be found in [Manage-AutomationAccount](https://github.com/GreyCorbel/azure-automation-devops-integration/blob/master/Tasks/Manage-AutomationAccount/Manage-AutomationAccount.ps1) script that implements Azure pipeline task.
+
+```powershell
+$tenantId = 'mydomain.com'
+#appId of app registration with federated credential
+$clientId = 'd01734f1-2a3f-452e-ad42-8ffe7ae900ef'
+#implement JWT token retrieval
+$assertion = Get-JwtTokenFromExternalIdentityProvider
+#use the JWT token to create factory
+New-AadAuthenticationFactory -TenantId $tenantId -ClientId $clientId -Assertion $assertion
+#retrieve AAD token
+$headers = Get-AadToken -Scopes 'https://management.azure.net/.default' -AsHashTable
+```
+
 ## Login to B2C tenant
 This option provides option to get AAD token usable to authenticate with applications integrated with B2C tenant
 
 ```powershell
-$myB2CTenant = 'https://myb2ctenant.onmicrosoft.com'
+$myB2CTenant = 'myb2ctenant.onmicrosoft.com'
 $myB2CClientId = 'd01734f1-2a3f-452e-ad42-8ffe7ae300bf'
 $myB2CClientRedirectUri = 'http://localhost:44351/'
 $myB2CAPI = "$myB2CTenant/13e25c85-a23a-4858-b988-4f171265a92d"

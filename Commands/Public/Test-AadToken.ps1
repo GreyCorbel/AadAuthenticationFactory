@@ -36,6 +36,10 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             #IdToken or AccessToken field from token returned by Get-AadToken
             #or complete result of Get-AadToken - in such case, AccessToken is examined
         $Token,
+        [Parameter()]
+        [string]
+            #OpenID configuration URI - if not provided, it's taken from token
+        $OidcConfigUri,
         [switch]
             #Causes to retun just parsed payload of token - contains list of claims
         $PayloadOnly
@@ -106,24 +110,43 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             #validate the token
 
             #validate the result using published keys
-            if($null -eq $result.Payload.tfp)
+            if(-not [string]::IsNullOrEmpty($OidcConfigUri))
             {
-                #AAD token
-                Write-Verbose "It's standard AAD token"
-                $endpoint = $result.Payload.iss.Replace('/v2.0','')
-                $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
+                $endpoint = $OidcConfigUri
             }
             else
             {
-                #AAD B2C token
-                Write-Verbose "It's B2C token"
-                $endpoint = $result.Payload.iss.Replace('/v2.0/','')
-                $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
+                if($null -eq $result.Payload.tfp)
+                {
+                    #AAD token
+                    $endpoint = $result.Payload.iss
+                    if(-not $endpoint.EndsWith('/'))
+                    {
+                        $endpoint += '/'
+                    }
+                    $endpoint = "$endpoint`.well-known/openid-configuration"
+                }
+                else
+                {
+                    #AAD B2C token
+                    Write-Verbose "It's B2C token"
+                    $endpoint = $result.Payload.iss.Replace('/v2.0/','')
+                    $endpoint = "$endpoint/$($result.Payload.tfp)/.well-known/openid-configuration"
+                }
             }
+            Write-Verbose "Getting openid configuration from $endpoint"
+            try {
+                $config = Invoke-RestMethod -Method Get -Uri $endpoint -ErrorAction Stop -Verbose:$false
+            }
+            catch {
+                Write-Warning "Could not get openid configuration from endpoint $endpoint"
+                return
+            }
+            $keysEndpoint = $config.jwks_uri
     
             Write-Verbose "Getting signing keys from $keysEndpoint"
             try {
-                $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop
+                $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop -Verbose:$false
             }
             catch {
                 Write-Warning "Could not get signing keys from endpoint $keysEndpoint"

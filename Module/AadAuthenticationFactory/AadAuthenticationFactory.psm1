@@ -452,6 +452,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Scopes to ask token for
         $DefaultScopes,
 
+        [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(Mandatory,ParameterSetName = 'PublicClient')]
@@ -492,6 +493,13 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Used to get access as application rather than as calling user
         $X509Certificate,
 
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
+        [string]
+            #Client assertion - JWT token created by external identity provider
+            #Used to authenticate with federated identity
+        $Assertion,
+
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
@@ -501,13 +509,14 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
             #Default: endpoint for public cloud
         $LoginApi = 'https://login.microsoftonline.com',
         
+        [Parameter(ParameterSetName = 'ConfidentialClientWithAssertion')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
         [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
         [string]
             #Name of the B2C policy to use for login
-            #Specifying this parameter means that you want to use B2B logig and expects you to provide B2C tenant name in tenant ID
+            #Specifying this parameter means that you want to use B2B login and expects you to provide B2C tenant name in tenant ID
             #Default: endpoint for public cloud
         $B2CPolicy,
 
@@ -563,7 +572,7 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         #setup of common options
         switch($PSCmdlet.ParameterSetName)
         {
-            {$_ -in 'ConfidentialClientWithSecret','ConfidentialClientWithCertificate'} {
+            {$_ -in 'ConfidentialClientWithSecret','ConfidentialClientWithCertificate','ConfidentialClientWithAssertion'} {
                 $opts = new-object Microsoft.Identity.Client.ConfidentialClientApplicationOptions
                 $opts.ClientId = $clientId
                 $opts.clientName = $moduleName
@@ -578,10 +587,15 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
                 {
                     $builder = $builder.WithClientSecret($ClientSecret)
                 }
+                elseif($_ -eq 'ConfidentialClientWithAssertion')
+                {
+                    $builder = $builder.WithClientAssertion($Assertion)
+                }
                 else
                 {
                     $builder = $builder.WithCertificate($X509Certificate)
                 }
+                
                 if([string]::IsNullOrEmpty($B2CPolicy))
                 {
                     $builder = $builder.WithAuthority($AuthorityUri)
@@ -739,6 +753,10 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             #IdToken or AccessToken field from token returned by Get-AadToken
             #or complete result of Get-AadToken - in such case, AccessToken is examined
         $Token,
+        [Parameter()]
+        [string]
+            #OpenID configuration URI - if not provided, it's taken from token
+        $OidcConfigUri,
         [switch]
             #Causes to retun just parsed payload of token - contains list of claims
         $PayloadOnly
@@ -809,24 +827,43 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
             #validate the token
 
             #validate the result using published keys
-            if($null -eq $result.Payload.tfp)
+            if(-not [string]::IsNullOrEmpty($OidcConfigUri))
             {
-                #AAD token
-                Write-Verbose "It's standard AAD token"
-                $endpoint = $result.Payload.iss.Replace('/v2.0','')
-                $keysEndpoint = "$($endpoint)/discovery/v2.0/keys"
+                $endpoint = $OidcConfigUri
             }
             else
             {
-                #AAD B2C token
-                Write-Verbose "It's B2C token"
-                $endpoint = $result.Payload.iss.Replace('/v2.0/','')
-                $keysEndpoint = "$endpoint/$($result.Payload.tfp)/discovery/v2.0/keys"
+                if($null -eq $result.Payload.tfp)
+                {
+                    #AAD token
+                    $endpoint = $result.Payload.iss
+                    if(-not $endpoint.EndsWith('/'))
+                    {
+                        $endpoint += '/'
+                    }
+                    $endpoint = "$endpoint`.well-known/openid-configuration"
+                }
+                else
+                {
+                    #AAD B2C token
+                    Write-Verbose "It's B2C token"
+                    $endpoint = $result.Payload.iss.Replace('/v2.0/','')
+                    $endpoint = "$endpoint/$($result.Payload.tfp)/.well-known/openid-configuration"
+                }
             }
+            Write-Verbose "Getting openid configuration from $endpoint"
+            try {
+                $config = Invoke-RestMethod -Method Get -Uri $endpoint -ErrorAction Stop -Verbose:$false
+            }
+            catch {
+                Write-Warning "Could not get openid configuration from endpoint $endpoint"
+                return
+            }
+            $keysEndpoint = $config.jwks_uri
     
             Write-Verbose "Getting signing keys from $keysEndpoint"
             try {
-                $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop
+                $signingKeys = Invoke-RestMethod -Method Get -Uri $keysEndpoint -ErrorAction Stop -Verbose:$false
             }
             catch {
                 Write-Warning "Could not get signing keys from endpoint $keysEndpoint"
