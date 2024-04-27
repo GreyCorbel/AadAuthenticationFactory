@@ -113,6 +113,10 @@ Command shows how to get token as hashtable containing properly formatted Author
         {
             Write-Verbose "Getting account from cache"
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
+            if($account.count -gt 1)
+            {
+                $account = $account[0]
+            }
             switch($Factory.FlowType)
             {
                 ([AuthenticationFlow]::PublicClient) {

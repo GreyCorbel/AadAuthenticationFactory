@@ -99,5 +99,10 @@ function Init
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }
         }
+
+        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
+        {
+            $script:AadAuthenticationFactories = @{}
+        }
     }
 }

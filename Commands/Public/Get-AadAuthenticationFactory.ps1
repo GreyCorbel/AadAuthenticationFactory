@@ -2,21 +2,49 @@ function Get-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Returns most authentication factory cached by module
+    Returns authentication factory specified by name or most recently created factory
 
 .DESCRIPTION
-    Returns most authentication factory cached by module
+    Returns authentication factory specified by name.
+    If no name is specified, returns the last created factory.
+    If factory specified by name does not exist, returns null
 
 .OUTPUTS
-    Existing authentication factory, or null
+    Authentication factory, or null
 
 #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'SpecificFactory')]
     param
-    ( )
+    ( 
+        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificFactory')]
+        [string]
+            #name of the factory to retrieve. If not specified, returns last created factory
+        $Name,
+        [Parameter(ParameterSetName = 'All')]
+        [switch]
+            #returns all factories created in current session
+        $All
+    )
 
     process
     {
-        $script:AadLastCreatedFactory
+        Switch($PSCmdlet.ParameterSetName)
+        {
+            'All' {
+                $script:AadAuthenticationFactories.Values
+                break;
+            }
+            'SpecificFactory' {
+                if([string]::IsNullOrEmpty($Name))
+                {
+                    $script:AadLastCreatedFactory
+                }
+                else
+                {
+                    $script:AadAuthenticationFactories[$Name]
+                }
+                break;
+            }
+        }
     }
 }

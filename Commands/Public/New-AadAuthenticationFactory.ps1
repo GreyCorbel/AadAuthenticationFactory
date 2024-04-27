@@ -30,13 +30,13 @@ Command works in on prem environment where access to internet is available via p
 
 .EXAMPLE
 $creds = Get-Credential
-New-AadAuthenticationFactory -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
-$vaultToken = Get-AadToken
+New-AadAuthenticationFactory -Name 'Vault' -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
+$vaultToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name 'Vault')
 
 Description
 -----------
 Command collects credentials of cloud-only account and authenticates with Resource Owner Password flow to get access token for Azure KeyVault.
-Get-AadToken command uses implicit factory cached from last call of New-AadAuthenticationFactory
+Get-AadToken command uses explicit factory specified by name to get token.
 #>
 
     param
@@ -133,6 +133,13 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Switch]
             #Tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
         $UseManagedIdentity,
+
+        [Parameter()]
+        [string]
+            #Name of the factory. 
+            #May be useful when creating more factories in one script
+            #Optional
+        $Name,
 
         [Parameter()]
         [System.Net.WebProxy]
@@ -298,7 +305,8 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         $builder = $builder.WithHttpClientFactory($httpFactory)
 
         #build the app and add processing info
-        $script:AadLastCreatedFactory = $builder.Build() `
+        $factory = $builder.Build() `
+        | Add-Member -MemberType NoteProperty -Name Name -Value $Name -PassThru `
         | Add-Member -MemberType NoteProperty -Name FlowType -Value $flowType -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
@@ -306,7 +314,9 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
 
         #Give the factory common type name for formatting
-        $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
-        $script:AadLastCreatedFactory 
+        $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
+        $script:AadLastCreatedFactory = $factory
+        $script:AadAuthenticationFactories[$factory.Name] = $factory
+        $factory
     }
 }

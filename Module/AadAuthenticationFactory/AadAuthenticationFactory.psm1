@@ -35,13 +35,10 @@ Returns all accounts from factory cache that match pattern 'John'.
     [CmdletBinding()]
     param
     (
-        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificAcount')]
+        [Parameter(ValueFromPipeline)]
             #User name to get account information for
             #If not specified, all accounts cached in factory are returned
         [string]$UserName,
-        [Parameter(ParameterSetName = 'All')]
-            #tells the command to return all accounts available
-        [switch]$All,
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory
     )
@@ -63,25 +60,13 @@ Returns all accounts from factory cache that match pattern 'John'.
                 $allAccounts = $Factory.GetAccountsAsync($Factory.B2CPolicy) | AwaitTask -CancellationTokenSource $cts
             }
 
-            switch($PSCmdlet.ParameterSetName)
+            if(-not [string]::IsNullOrEmpty($UserName))
             {
-                'All' {
-                    $allAccounts
-                    break;
-                }
-                'SpecificAcount' {
-                    if(-not [string]::IsNullOrEmpty($UserName))
-                    {
-                        $allAccounts | Where-Object{$_.UserName -match $Username}
-                    }
-                    else {
-                        if($allAccounts.Count -gt 0)
-                        {
-                            $allAccounts[0]
-                        }
-                    }
-                    break;
-                }
+                $allAccounts | Where-Object{$_.UserName -match $Username}
+            }
+            else 
+            {
+                $allAccounts
             }
         }
     }
@@ -97,22 +82,49 @@ function Get-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Returns most authentication factory cached by module
+    Returns authentication factory specified by name or most recently created factory
 
 .DESCRIPTION
-    Returns most authentication factory cached by module
+    Returns authentication factory specified by name.
+    If no name is specified, returns the last created factory.
+    If factory specified by name does not exist, returns null
 
 .OUTPUTS
-    Existing authentication factory, or null
+    Authentication factory, or null
 
 #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'SpecificFactory')]
     param
-    ( )
+    ( 
+        [Parameter(ValueFromPipeline, ParameterSetName = 'SpecificFactory')]
+        [string]
+            #name of the factory to retrieve. If not specified, returns last created factory
+        $Name,
+        [Parameter(ParameterSetName = 'All')]
+        [switch]
+        $All
+    )
 
     process
     {
-        $script:AadLastCreatedFactory
+        Switch($PSCmdlet.ParameterSetName)
+        {
+            'All' {
+                $script:AadAuthenticationFactories.Values
+                break;
+            }
+            'SpecificFactory' {
+                if([string]::IsNullOrEmpty($Name))
+                {
+                    $script:AadLastCreatedFactory
+                }
+                else
+                {
+                    $script:AadAuthenticationFactories[$Name]
+                }
+                break;
+            }
+        }
     }
 }
 function Get-AadDefaultClientId
@@ -253,6 +265,10 @@ Command shows how to get token as hashtable containing properly formatted Author
         {
             Write-Verbose "Getting account from cache"
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
+            if($account.count -gt 1)
+            {
+                $account = $account[0]
+            }
             switch($Factory.FlowType)
             {
                 ([AuthenticationFlow]::PublicClient) {
@@ -435,13 +451,13 @@ Command works in on prem environment where access to internet is available via p
 
 .EXAMPLE
 $creds = Get-Credential
-New-AadAuthenticationFactory -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
-$vaultToken = Get-AadToken
+New-AadAuthenticationFactory -Name 'Vault' -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
+$vaultToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name 'Vault')
 
 Description
 -----------
 Command collects credentials of cloud-only account and authenticates with Resource Owner Password flow to get access token for Azure KeyVault.
-Get-AadToken command uses implicit factory cached from last call of New-AadAuthenticationFactory
+Get-AadToken command uses explicit factory specified by name to get token.
 #>
 
     param
@@ -538,6 +554,13 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         [Switch]
             #Tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
         $UseManagedIdentity,
+
+        [Parameter()]
+        [string]
+            #Name of the factory. 
+            #May be useful when creating more factories in one script
+            #Optional
+        $Name,
 
         [Parameter()]
         [System.Net.WebProxy]
@@ -703,7 +726,8 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         $builder = $builder.WithHttpClientFactory($httpFactory)
 
         #build the app and add processing info
-        $script:AadLastCreatedFactory = $builder.Build() `
+        $factory = $builder.Build() `
+        | Add-Member -MemberType NoteProperty -Name Name -Value $Name -PassThru `
         | Add-Member -MemberType NoteProperty -Name FlowType -Value $flowType -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
@@ -711,8 +735,10 @@ Get-AadToken command uses implicit factory cached from last call of New-AadAuthe
         | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
 
         #Give the factory common type name for formatting
-        $script:AadLastCreatedFactory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
-        $script:AadLastCreatedFactory 
+        $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
+        $script:AadLastCreatedFactory = $factory
+        $script:AadAuthenticationFactories[$factory.Name] = $factory
+        $factory
     }
 }
 function Test-AadToken
@@ -1132,6 +1158,11 @@ function Init
                 $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }
+        }
+
+        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
+        {
+            $script:AadAuthenticationFactories = @{}
         }
     }
 }

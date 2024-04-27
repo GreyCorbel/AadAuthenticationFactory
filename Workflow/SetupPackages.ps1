@@ -16,7 +16,7 @@ if(-not (Test-Path -Path "$RootPath\Module\AadAuthenticationFactory\Runtimes")) 
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
 "Processing: $($pkg.id)"
-Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net461" -Force
+Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net462\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net461" -Force
 Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net6.0" -Force
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
@@ -33,5 +33,5 @@ Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\runtimes" -Desti
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
 "Processing: $($pkg.id)"
-Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net461" -Force
+Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net462\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net461" -Force
 Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\netstandard2.0\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\netstandard2.0" -Force

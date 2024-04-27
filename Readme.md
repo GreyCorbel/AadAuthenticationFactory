@@ -1,7 +1,7 @@
 # AadAuthenticationFactory
 This module provides unified experience for getting and using tokens from Azure AD authentication platform. Experience covers this authentication scenarios:
   - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based Interactive authentication, Device code authentication, Resource Owner credentials, Windows integrated authentication (supports ADFS-federated tenants) and WAM (authentication with Windows broker)
-  - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate
+  - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate or with Federated credentials (Workload authentication scenario)
   - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
 
 Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows (PS Desktop and Core), MacOS and Linux.
@@ -13,18 +13,20 @@ Module comes with commands:
 |Command|Usage|
 |:------|:----|
 |New-AadAuthenticationFactory | Creates factory responsible for issuing of AAD tokens for given resource, using given authentication flow|
-|Get-AAdToken|Tells the factory to create a token. Factory returns cached token, if available, and takes care of token renewals silently whenever possible, after tokens expire|
+|Get-AadAuthenticationFactory|Returns instance of factory specified by name (or null if factory with given name was nto created) or all factories created in current sesison|
+|Get-AadToken|Tells the factory to create a token. Factory returns cached token, if available, and takes care of token renewals silently whenever possible, after tokens expire|
 |Test-AadToken|Parses Access token or Id token and validates it against published keys. Provides PowerShell way of showing token content as available in http://jwt.ms|
 |Get-AadDefaultClientId|Returns default client id used by module when client id not specified in New-AadAuthenticationFactory command|
+|Get-AadAccount|Returns specified account or all accounts cached in specified instance of factory|
 
 Module is usable two ways:
 - as standalone module to provide Azure tokens ad-hoc or in scripts
-- by other modules to provide instant Azure authentication services without the need to implement them - just make dependency on AadAuthenticationFactory module in other module and use it to get tokens for resources as you need. This is demonstrated by [CosmosLite module](https://github.com/jformacek/CosmosLite)
+- by other modules to provide instant Azure authentication services without the need to implement them - just make dependency on AadAuthenticationFactory module in other module and use it to get tokens for resources as you need. This is demonstrated by [CosmosLite module](https://github.com/jformacek/CosmosLite) and [ExoHelper module](https://github.com/greycorbel/ExoHelper)
 
 # Examples
 Sections below provide example of various way of getting autthenticated with the module.
 ## Simple usage with single factory and default Public client
-Module caches most-recently created factory. Factory uses Client Id of Azure Powershell app provided by MS. Sample uses browser based authentication and gives Delegated permissions configured for Azure Powershell for Graph API to calling user.  
+Module caches most-recently created factory. When name specified for the factory, factory can later be retrieved via ```Get-AadAuthenticationFactory``` command, passing name of the factory as parameter. Factory uses Client Id of Azure Powershell app provided by MS. Sample uses browser based authentication and gives Delegated permissions configured for Azure Powershell for Graph API to calling user.  
 Sample demonstrates examination of resulting Access and ID tokens issued for calling of Graph API.  
 *Note*: Access tokens for Graph API fail to validate - this is by design according to MS - see discussion here: https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609
 ```powershell
@@ -126,10 +128,10 @@ $myFrontendAppId = '<enter appId of 1st tier app talking to 2nd tier>'
 $myFrontendClientSecret = "<enter client secret of 1st tier app>"
 $myBackendScopes = 'https://mycompany.com/2ndTierApp/.default'
 
-
-$frontendAppFactory = New-AadAuthenticationFactory -TenantId $myTenant -RequiredScopes $myFrontendScopes -ClientId $myNativeClientId -AuthMode Interactive
+#create named factory to get access token for frontend
+New-AadAuthenticationFactory -Name Frontend -TenantId $myTenant -RequiredScopes $myFrontendScopes -ClientId $myNativeClientId -AuthMode Interactive
 #get access token for frontend app
-$frontendAppToken = Get-AadToken -Factory $frontendAppFactory
+$frontendAppToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name Frontend)
 #observe claims in access token for frontend app
 $frontendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty payload
 #observe claims in Id token for native client app
@@ -148,7 +150,8 @@ $backendAppToken.IdToken | Test-AadToken | Select-Object -ExpandProperty payload
 ```
 
 ## WAM based authentication
-This option provides transparent SSO with currently logged-in user account.
+This option provides transparent SSO with currently logged-in user account.  
+_Note_: This option Works only on Windows platform.
 
 ```powershell
 New-AadAuthenticationFactory -TenantId 'mytenant.com' -AuthMode WAM
@@ -163,7 +166,7 @@ For real-life usage, see [azure-automation-devops-integration](https://github.co
 $tenantId = 'mydomain.com'
 #appId of app registration with federated credential
 $clientId = 'd01734f1-2a3f-452e-ad42-8ffe7ae900ef'
-#implement JWT token retrieval
+#implement JWT token retrieval yourself
 $assertion = Get-JwtTokenFromExternalIdentityProvider
 #use the JWT token to create factory
 New-AadAuthenticationFactory -TenantId $tenantId -ClientId $clientId -Assertion $assertion

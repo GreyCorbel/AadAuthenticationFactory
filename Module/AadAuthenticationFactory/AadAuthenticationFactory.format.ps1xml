@@ -62,6 +62,9 @@
             <TableRowEntry>
                 <TableColumnItems>
                     <TableColumnItem>
+                        <PropertyName>Name</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
                         <PropertyName>Authority</PropertyName>
                     </TableColumnItem>
                     <TableColumnItem>
