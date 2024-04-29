@@ -181,9 +181,9 @@ This option provides option to get AAD token usable to authenticate with applica
 $myB2CTenant = 'myb2ctenant.onmicrosoft.com'
 $myB2CClientId = 'd01734f1-2a3f-452e-ad42-8ffe7ae300bf'
 $myB2CClientRedirectUri = 'http://localhost:44351/'
-$myB2CAPI = "$myB2CTenant/13e25c85-a23a-4858-b988-4f171265a92d"
 $myB2CLoginApi = " https://myb2ctenant.b2clogin.com"
+$myB2CAPI = "$myB2CTenant/13e25c85-a23a-4858-b988-4f171265a92d"
 
-New-AadAuthenticationFactory -ClientId $myB2CClientId -TenantId $myB2CTenant -AuthMode Interactive -B2CPolicy 'B2C_1_sisi' -LoginApi $myB2CLoginApi -RedirectUri $myB2CClientRedirectUri
+New-AadAuthenticationFactory -ClientId $myB2CClientId -TenantId $myB2CTenant -AuthMode Interactive -B2CPolicy 'B2C_1_siso' -LoginApi $myB2CLoginApi -RedirectUri $myB2CClientRedirectUri
 Get-AadToken -Scopes "$myB2CAPI/.default" | Test-AadToken -Verbose
 ```

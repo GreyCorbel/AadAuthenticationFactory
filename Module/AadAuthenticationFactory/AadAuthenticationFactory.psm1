@@ -16,15 +16,16 @@ function Get-AadAccount
     Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadAccount -Factory $factory -All
+New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+Get-AadToken
+Get-AadAccount
 
 Description
 -----------
-Returns all accounts from factory cache
+Returns all accounts from cache of most recently created factory.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
 Get-AadAccount -UserName John
 
 Description
@@ -102,6 +103,7 @@ function Get-AadAuthenticationFactory
         $Name,
         [Parameter(ParameterSetName = 'All')]
         [switch]
+            #returns all factories created in current session
         $All
     )
 
@@ -1117,15 +1119,15 @@ function Init
                 catch
                 {
                     Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.dll')))
-                    $referencedAssemblies+=[System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.dll'))
+                    Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll')))
+                    $referencedAssemblies+=[System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll'))
                 }
                 #on Windows, load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
-                        Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.Broker.dll')))
+                        Add-Type -Path ([System.IO.Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.Broker.dll')))
                         #need to add path to native runtime supporting the broker
                         switch($env:PROCESSOR_ARCHITECTURE)
                         {
