@@ -22,7 +22,7 @@ Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pk
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
 "Processing: $($pkg.id)"
-Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net461\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net461" -Force
+Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net462\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net462" -Force
 Copy-Item -Path "$RootPath\packages\$($pkg.id)`.$($pkg.version)\lib\net6.0\$($pkg.id)`.dll" -Destination "$RootPath\Module\AadAuthenticationFactory\shared\net6.0" -Force
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.NativeInterop"}
