@@ -66,7 +66,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             #When not specified, returns authentication result with tokens and other metadata
         [switch]$AsHashTable,
             #Asks runtime to avoid token cache and get fresh token from AAD
-            [switch]$forceRefresh,
+        [switch]$ForceRefresh,
         [Parameter(ValueFromPipeline)]
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory

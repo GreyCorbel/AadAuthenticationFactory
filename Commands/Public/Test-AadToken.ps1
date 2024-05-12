@@ -96,8 +96,8 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
         
         Write-Verbose "Parsing the token"
         $result = [PSCustomObject]@{
-            Header = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[0]))) | ConvertFrom-Json
-            Payload = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[1]))) | ConvertFrom-Json
+            Header = [Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[0]))) | ConvertFrom-Json
+            Payload = [Encoding]::UTF8.GetString([Convert]::FromBase64String((Base64UrlDecode -Data $parts[1]))) | ConvertFrom-Json
             IsValid = $false
         }
 
@@ -194,7 +194,7 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
     
             Write-Verbose "Creating payload to validate"
             $payload = "$($parts[0]).$($parts[1])"
-            $dataToVerify = [System.Text.Encoding]::UTF8.GetBytes($payload)
+            $dataToVerify = [Encoding]::UTF8.GetBytes($payload)
             $sig = Base64UrlDecode -Data $parts[2]
             $signature = [Convert]::FromBase64String($sig)
     
