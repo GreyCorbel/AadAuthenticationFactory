@@ -53,6 +53,11 @@ Returns all accounts from factory cache that match pattern 'John'.
     }
     process
     {
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
+
         if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
             if([string]::IsNullOrEmpty($Factory.B2CPolicy))
@@ -242,6 +247,11 @@ Command shows how to get token as hashtable containing properly formatted Author
             return
         }
 
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
+        
         if($null -eq $Scopes)
         {
             $scopes = $factory.DefaultScopes

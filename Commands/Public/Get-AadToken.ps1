@@ -85,6 +85,11 @@ Command shows how to get token as hashtable containing properly formatted Author
             return
         }
 
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
+        
         if($null -eq $Scopes)
         {
             $scopes = $factory.DefaultScopes

@@ -49,6 +49,11 @@ Returns all accounts from factory cache that match pattern 'John'.
     }
     process
     {
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
+
         if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
             if([string]::IsNullOrEmpty($Factory.B2CPolicy))
