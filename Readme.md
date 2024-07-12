@@ -30,7 +30,7 @@ Module caches most-recently created factory. When name specified for the factory
 Sample demonstrates examination of resulting Access and ID tokens issued for calling of Graph API.  
 *Note*: Access tokens for Graph API fail to validate - this is by design according to MS - see discussion here: https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609
 ```powershell
-#create authnetication factory and cache it inside module
+#create authnetication factory and cache it inside the module
 New-AadAuthenticationFactory -TenantId mytenant.com -DefaultScopes 'https://graph.microsoft.com/.default' -AuthMode Interactive | Out-Null
 
 #ask for token
@@ -41,7 +41,7 @@ $Token.AccessToken | Test-AadToken | Select -Expand Payload
 #examine ID token data
 $Token.IdToken | Test-AadToken | Select -Expand Payload
 
-#ask for token to different resource using authentication provided before
+#ask for token to different resource using authentication provided earlier
 $Token2 = Get-AadToken -Scopes https://vault.azure.net/.default
 
 #ask for fresh token with reauthentication of user
@@ -66,7 +66,7 @@ $Token.AccessToken | Test-AadToken | Select -Expand Payload
 $Token.IdToken | Test-AadToken | Select -Expand Payload
 ```
 
-## Custom app and certificate auth with Confidential client
+## Custom app id and certificate auth with Confidential client
 This sample creates authentication factory for getting tokens for different resources for application that uses X.509 certificate for authentication.
 
 ```powershell
@@ -130,18 +130,18 @@ $myBackendScopes = 'https://mycompany.com/2ndTierApp/.default'
 
 #create named factory to get access token for frontend
 New-AadAuthenticationFactory -Name Frontend -TenantId $myTenant -RequiredScopes $myFrontendScopes -ClientId $myNativeClientId -AuthMode Interactive
-#get access token for frontend app
-$frontendAppToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name Frontend)
+#get access token for frontend app. You can reference factory by name
+$frontendAppToken = Get-AadToken -Factory Frontend
 #observe claims in access token for frontend app
 $frontendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty payload
 #observe claims in Id token for native client app
 $frontendAppToken.IdToken | Test-AadToken | Select-Object -ExpandProperty payload
 
 #create factory to retrieve token as frontend app on behalf of user
-#note that app needs to present its client secret/certificate to get onbehalf-of token
-$backendAppFactory = New-AadAuthenticationFactory -TenantId $myTenant -RequiredScopes $myBackendScopes -ClientId $myFrontendAppId -ClientSecret $myFrontendClientSecret
+#Note: app has to present its client secret/certificate to get on-behalf-of token
+New-AadAuthenticationFactory -TenantId $myTenant -RequiredScopes $myBackendScopes -ClientId $myFrontendAppId -ClientSecret $myFrontendClientSecret -name Backend
 #retrieve access token
-$backendAppToken = Get-AadToken -Factory $backendAppFactory -UserToken $frontendAppToken.AccessToken
+$backendAppToken = Get-AadToken -Factory Backend -UserToken $frontendAppToken.AccessToken
 #observe claims in access token for backend app
 $backendAppToken.AccessToken | Test-AadToken | Select-Object -ExpandProperty payload
 #observe claims in Id token for frontend app
