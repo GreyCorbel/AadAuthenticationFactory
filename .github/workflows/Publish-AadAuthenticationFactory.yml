@@ -69,7 +69,7 @@ jobs:
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' }}
       env:
-        SECRET: ${{ secrets.PSGallery_APIKey }}
+        SECRET: ${{ secrets.GC_PSGALLERY_APIKEY }}
       run: |
         write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME"
         try
