@@ -574,6 +574,7 @@ Get-AadToken command uses explicit factory specified by name to get token.
         [string]
             #Name of the factory. 
             #May be useful when creating more factories in one script
+            #Name is case-insensitive
             #Optional
         $Name,
 
