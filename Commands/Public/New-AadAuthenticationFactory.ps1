@@ -312,7 +312,8 @@ Get-AadToken command uses explicit factory specified by name to get token.
         | Add-Member -MemberType NoteProperty -Name DefaultScopes -Value $DefaultScopes -PassThru `
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
         | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru `
-        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru
+        | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
+        | Add-Member -MemberType NoteProperty -Name TenantId -Value $TenantId -PassThru
 
         #Give the factory common type name for formatting
         $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
