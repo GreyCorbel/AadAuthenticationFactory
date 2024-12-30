@@ -19,7 +19,7 @@ Module comes with commands:
 |Get-AadDefaultClientId|Returns default client id used by module when client id not specified in New-AadAuthenticationFactory command|
 |Get-AadAccount|Returns specified account or all accounts cached in specified instance of factory|
 
-Module is usable two ways:
+Module is usable in two ways:
 - as standalone module to provide Azure tokens ad-hoc or in scripts
 - by other modules to provide instant Azure authentication services without the need to implement them - just make dependency on AadAuthenticationFactory module in other module and use it to get tokens for resources as you need. This is demonstrated by [CosmosLite module](https://github.com/jformacek/CosmosLite) and [ExoHelper module](https://github.com/greycorbel/ExoHelper)
 
@@ -186,4 +186,19 @@ $myB2CAPI = "$myB2CTenant/13e25c85-a23a-4858-b988-4f171265a92d"
 
 New-AadAuthenticationFactory -ClientId $myB2CClientId -TenantId $myB2CTenant -AuthMode Interactive -B2CPolicy 'B2C_1_siso' -LoginApi $myB2CLoginApi -RedirectUri $myB2CClientRedirectUri
 Get-AadToken -Scopes "$myB2CAPI/.default" | Test-AadToken -Verbose
+```
+## Support from Proof-of-Possession (PoP) tokens
+Starting with version 3.2.0, module supports retrieval of PoP tokens in addition to Bearer tokens. For PoP tokens details, see [RFC7800](https://tools.ietf.org/html/rfc7800).  
+PoP token support is limited to public client with WAM flow. Also, resouce server is required to support PoP for PoP token to be issued.  
+For details, see [MSAL PoP support](https://learn.microsoft.com/en-us/entra/msal/dotnet/advanced/proof-of-possession-tokens) details.  
+Sample below shows hot to authenticate to MS Graph API with PoP token:
+```powershell
+New-AadAuthenticationFactory -DefaultScopes 'https://graph.microsoft.com/.default' -TenantId 'mytenant.com' -AuthMode WAM
+$uri = 'https://graph.microsoft.com/v1.0/me/directReports'
+#ask for PoP token by specifying PoPRequestUri - PoP token is alwaays bound to Uri and http method
+#when specifying PopRequestUri and optionally PopHttpHethod (defaults to Get when not specified)
+#this indicates interes in getting PoP token
+#we reach the uri behind the scenes to retrieve a nonce from resource server - nonce is needed to create a PoP token
+$h = Get-AadToken -Verbose -PoPRequestUri $uri -PopHttpMethod Get -AsHashTable
+Invoke-RestMethod -uri $uri -Method Get -Headers $h | select -expand value
 ```
