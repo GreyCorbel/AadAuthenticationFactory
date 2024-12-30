@@ -134,6 +134,12 @@ Get-AadToken command uses explicit factory specified by name to get token.
             #Tries to get parameters from environment and token from internal endpoint provided by Azure MSI support
         $UseManagedIdentity,
 
+        [Parameter(ParameterSetName = 'PublicClient')]
+        [Switch]
+            #Enables support for multi-clud authentication, allowing to ask tokens for national clouds from global cloud
+            #Only works with default clientId
+        $Multicloud,
+
         [Parameter()]
         [string]
             #Name of the factory. 
@@ -237,7 +243,10 @@ Get-AadToken command uses explicit factory specified by name to get token.
                 {
                     $builder = $builder.WithDefaultRedirectUri()
                 }
-
+                if($Multicloud)
+                {
+                    $builder = $builder.WithMultiCloudSupport($true)
+                }
                 if($_ -eq 'ResourceOwnerPasssword')
                 {
                     $flowType = [AuthenticationFlow]::ResourceOwnerPassword
@@ -313,7 +322,8 @@ Get-AadToken command uses explicit factory specified by name to get token.
         | Add-Member -MemberType NoteProperty -Name DefaultUserName -Value $DefaultUserName -PassThru `
         | Add-Member -MemberType NoteProperty -Name ResourceOwnerCredential -Value $ResourceOwnerCredential -PassThru `
         | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
-        | Add-Member -MemberType NoteProperty -Name TenantId -Value $TenantId -PassThru
+        | Add-Member -MemberType NoteProperty -Name TenantId -Value $TenantId -PassThru `
+        | Add-Member -MemberType NoteProperty -Name HttpClientFactory -Value $httpFactory -PassThru
 
         #Give the factory common type name for formatting
         $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')

@@ -61,6 +61,15 @@ Command shows how to get token as hashtable containing properly formatted Author
             #Access token for user
             #Used to identify user in on-behalf-of flows
         [string]$UserToken,
+            #Request PoP token instead of Bearer token
+            #PoP http method for resource to bind PoP token to
+            #default is GET
+            #Ignored for authentication flows other than 'PublicClientWithWam
+        [System.Net.Http.HttpMethod]$PopHttpMethod = [System.Net.Http.HttpMethod]::Get,
+            #Request PoP token instead of Bearer token
+            #PUri to bind PoP token to
+            #Ignored for authentication flows other than 'PublicClientWithWam
+        [string]$PoPRequestUri,
             #When specified, hashtable with Authorization header is returned instead of token
             #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
             #When not specified, returns authentication result with tokens and other metadata
@@ -164,7 +173,19 @@ Command shows how to get token as hashtable containing properly formatted Author
                     try
                     {
                         Write-Verbose "Getting token silently"
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)
+                        $builder = $builder.WithForceRefresh($forceRefresh)
+                        if(-not [string]::IsNullOrEmpty($PoPRequestUri))
+                        {
+                            Write-Verbose "Requesting PoP nonce from resource server for Uri: $PoPRequestUri and http method $PopHttpMethod"
+                            $PopNonce = Get-PoPNonce -Uri $PoPRequestUri -Method $PopHttpMethod -Factory $Factory
+                            if($null -eq $PopNonce)
+                            {
+                                throw (new-object System.ArgumentException("Resource does not support PoP authentication scheme"))
+                            }
+                            $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
+                        }
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
@@ -181,9 +202,14 @@ Command shows how to get token as hashtable containing properly formatted Author
                             Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and account: $($account.userName)"
                             $builder = $builder.WithAccount($account)
                         }
+                        if(-not [string]::IUsNullOrEmpty($popNonce))
+                        {
+                            Write-Verbose "Requesting PoP token interactively"
+                            $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
+                        }
                         $task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
-                    }
+                    }    
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithDeviceCode) {
