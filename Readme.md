@@ -1,5 +1,5 @@
 # AadAuthenticationFactory
-This module provides unified experience for getting and using tokens from Azure AD authentication platform. Experience covers this authentication scenarios:
+This module provides unified experience for getting and using tokens from Entra ID authentication platform. Experience covers this authentication scenarios:
   - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based Interactive authentication, Device code authentication, Resource Owner credentials, Windows integrated authentication (supports ADFS-federated tenants) and WAM (authentication with Windows broker)
   - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate or with Federated credentials (Workload authentication scenario)
   - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
@@ -12,10 +12,10 @@ Module comes with commands:
 
 |Command|Usage|
 |:------|:----|
-|New-AadAuthenticationFactory | Creates factory responsible for issuing of AAD tokens for given resource, using given authentication flow|
-|Get-AadAuthenticationFactory|Returns instance of factory specified by name (or null if factory with given name was nto created) or all factories created in current sesison|
+|New-AadAuthenticationFactory|Creates factory responsible for issuing of AAD tokens, using specified authentication flow|
+|Get-AadAuthenticationFactory|Returns instance of factory specified by name (or null if factory with given name was not created) or all factories created in current sesison|
 |Get-AadToken|Tells the factory to create a token. Factory returns cached token, if available, and takes care of token renewals silently whenever possible, after tokens expire|
-|Test-AadToken|Parses Access token or Id token and validates it against published keys. Provides PowerShell way of showing token content as available in http://jwt.ms|
+|Test-AadToken|Parses Access token or Id token and validates it against Entra ID published keys. Provides PowerShell way of showing token content as available in http://jwt.ms|
 |Get-AadDefaultClientId|Returns default client id used by module when client id not specified in New-AadAuthenticationFactory command|
 |Get-AadAccount|Returns specified account or all accounts cached in specified instance of factory|
 
