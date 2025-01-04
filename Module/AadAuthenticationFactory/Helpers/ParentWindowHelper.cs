@@ -22,11 +22,15 @@ public static class ParentWindowHelper
     // This is your window handle!
     public static IntPtr GetConsoleOrTerminalWindow()
     {
+        return ConsoleWindowHandleProvider();
+    }
+
+    public static Func<IntPtr> ConsoleWindowHandleProvider = () => {
         IntPtr consoleHandle = GetConsoleWindow();
-        if(null == consoleHandle)
+        if(IntPtr.Zero == consoleHandle)
             throw new System.PlatformNotSupportedException("Could not get console window handle on this OS platform");
         IntPtr handle = GetAncestor(consoleHandle, GetAncestorFlags.GetRootOwner );
         
         return handle;
-    }
+    };
 }

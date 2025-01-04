@@ -276,6 +276,8 @@ Get-AadToken command uses explicit factory specified by name to get token.
                                 $flowType = [AuthenticationFlow]::PublicClientWithWam
                                 $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
                                 $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                                $builder = $builder.WithRedirectUri("http://localhost")
                             }
                             else
                             {

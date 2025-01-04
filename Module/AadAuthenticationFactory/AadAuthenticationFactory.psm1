@@ -339,11 +339,15 @@ Command shows how to get token as hashtable containing properly formatted Author
                         $builder = $builder.WithForceRefresh($forceRefresh)
                         if(-not [string]::IsNullOrEmpty($PoPRequestUri))
                         {
+                            if(-not $factory.IsProofOfPossessionSupportedByClient)
+                            {
+                                throw (new-object System.ArgumentException("PoP authentication scheme is not supported by client"))
+                            }
                             Write-Verbose "Requesting PoP nonce from resource server for Uri: $PoPRequestUri and http method $PopHttpMethod"
                             $PopNonce = Get-PoPNonce -Uri $PoPRequestUri -Method $PopHttpMethod -Factory $Factory
                             if($null -eq $PopNonce)
                             {
-                                throw (new-object System.ArgumentException("Resource does not support PoP authentication scheme"))
+                                throw (new-object System.ArgumentException("PoP authentication scheme is not supported by resource server"))
                             }
                             $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
                         }
@@ -352,7 +356,7 @@ Command shows how to get token as hashtable containing properly formatted Author
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
-                        $windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
+                        #$windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
                         $builder = $factory.AcquireTokenInteractive($Scopes)
                         if(-not [string]::IsNullOrEmpty($UserName))
                         {
@@ -364,12 +368,13 @@ Command shows how to get token as hashtable containing properly formatted Author
                             Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and account: $($account.userName)"
                             $builder = $builder.WithAccount($account)
                         }
-                        if(-not [string]::IUsNullOrEmpty($popNonce))
+                        if(-not [string]::IsNullOrEmpty($popNonce))
                         {
                             Write-Verbose "Requesting PoP token interactively"
                             $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
                         }
-                        $task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
+                        #$task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }    
                     break;
@@ -803,6 +808,8 @@ Get-AadToken command uses explicit factory specified by name to get token.
                                 $flowType = [AuthenticationFlow]::PublicClientWithWam
                                 $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
                                 $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
+                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                                $builder = $builder.WithRedirectUri("http://localhost")
                             }
                             else
                             {
