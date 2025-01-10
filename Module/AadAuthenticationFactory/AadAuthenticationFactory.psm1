@@ -356,7 +356,6 @@ Command shows how to get token as hashtable containing properly formatted Author
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
-                        #$windowHandle = [ParentWindowHelper]::GetConsoleOrTerminalWindow()
                         $builder = $factory.AcquireTokenInteractive($Scopes)
                         if(-not [string]::IsNullOrEmpty($UserName))
                         {
@@ -373,7 +372,6 @@ Command shows how to get token as hashtable containing properly formatted Author
                             Write-Verbose "Requesting PoP token interactively"
                             $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
                         }
-                        #$task = $builder.WithParentActivityOrWindow($windowHandle).ExecuteAsync($cts.Token)
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }    
@@ -1190,7 +1188,7 @@ function Init
     process
     {
         $referencedAssemblies = @('System.Net.Http')
-        #load platform specific
+        #load is platform specific
         switch($PSEdition)
         {
             'Core'
@@ -1207,14 +1205,15 @@ function Init
                 catch
                 {
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.Identity.Client.dll')))
-                    #compiling http factory against our version
-                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.Identity.Client.dll'))
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll')))
+                    #compiling http factory against our version of MSAL library
+                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll'))
 
                 }
                 #on Windows, load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
                     if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
@@ -1250,6 +1249,7 @@ function Init
                 {
                     if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
+                        Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll')))
                         Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
                         #need to add path to native runtime supporting the broker
                         switch($env:PROCESSOR_ARCHITECTURE)

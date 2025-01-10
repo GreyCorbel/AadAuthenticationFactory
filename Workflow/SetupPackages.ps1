@@ -19,13 +19,14 @@ if(-not (Test-Path -Path $sharedPath)) { New-Item -ItemType Directory -Path $sha
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net462')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net462')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netstandard2.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netstandard2.0')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net6.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net6.0')) | Out-Null}
+if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net8.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net8.0')) | Out-Null}
 if(-not (Test-Path -Path $runtimesPath)) { New-Item -ItemType Directory -Path $runtimesPath | Out-Null}
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
 "Processing: $($pkg.id)"
 $packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
 Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net6.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net6.0')) -Force
+Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net8.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net8.0')) -Force
 
 $pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
 "Processing: $($pkg.id)"
