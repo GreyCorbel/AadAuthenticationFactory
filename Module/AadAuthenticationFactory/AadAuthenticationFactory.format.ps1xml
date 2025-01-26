@@ -58,6 +58,17 @@
             <TypeName>GreyCorbel.Identity.Authentication.AadAuthenticationFactory</TypeName>
         </ViewSelectedBy>
         <TableControl>
+            <TableHeaders>
+            <TableColumnHeader>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            <Label>ClientId</Label>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            </TableColumnHeader>
+            </TableHeaders>
             <TableRowEntries>
             <TableRowEntry>
                 <TableColumnItems>
@@ -68,7 +79,11 @@
                         <PropertyName>Authority</PropertyName>
                     </TableColumnItem>
                     <TableColumnItem>
-                        <PropertyName>ClientId</PropertyName>
+                        <ScriptBlock>
+                        <![CDATA[
+                        $_.AppConfig.ClientId
+                        ]]>
+                        </ScriptBlock>
                     </TableColumnItem>
                     <TableColumnItem>
                         <PropertyName>FlowType</PropertyName>
