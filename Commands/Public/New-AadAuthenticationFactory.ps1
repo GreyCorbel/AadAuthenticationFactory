@@ -140,6 +140,10 @@ Get-AadToken command uses explicit factory specified by name to get token.
             #Only works with default clientId
         $Multicloud,
 
+        [Switch]
+            #Enables experimental features in MSAL
+        $EnableExperimentalFeatures,
+
         [Parameter()]
         [string]
             #Name of the factory. 
@@ -315,6 +319,7 @@ Get-AadToken command uses explicit factory specified by name to get token.
         #crate factory and add to builder
         $httpFactory = [GcMsalHttpClientFactory]::Create($proxy,$ModuleVersion,$useDefaultCredentials)
         $builder = $builder.WithHttpClientFactory($httpFactory)
+        $builder = $builder.WithExperimentalFeatures($EnableExperimentalFeatures)
 
         #build the app and add processing info
         $factory = $builder.Build() `
