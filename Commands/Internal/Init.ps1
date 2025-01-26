@@ -97,6 +97,7 @@ function Init
         {
             if($null -eq ($helper -as [type]))
             {
+                Write-Verbose "Loading helper $helper"
                 $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }

@@ -258,7 +258,22 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::ConfidentialClient) {
 
                     Write-Verbose "Getting token for confidentioal client"
-                    $task = $factory.AcquireTokenForClient($scopes).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                    $builder = $factory.AcquireTokenForClient($scopes)
+                    $builder = $builder.WithForceRefresh($forceRefresh)
+                    if(-not [string]::IsNullOrEmpty($PoPRequestUri))
+                    {
+                        Write-Verbose "Requesting PoP nonce from resource server for Uri: $PoPRequestUri and http method $PopHttpMethod"
+                        $PopNonce = Get-PoPNonce -Uri $PoPRequestUri -Method $PopHttpMethod -Factory $Factory
+                        if($null -eq $PopNonce)
+                        {
+                            throw (new-object System.ArgumentException("PoP authentication scheme is not supported by resource server"))
+                        }
+                        $popConfig = new-object Microsoft.Identity.Client.AppConfig.PoPAuthenticationConfiguration((new-object Uri($PoPRequestUri)))
+                        $popConfig.HttpMethod = $PopHttpMethod
+                        $popConfig.Nonce = $PopNonce
+                        $builder = $builder.WithProofOfPossession($popConfig)
+                    }
+                    $task = $builder.ExecuteAsync($cts.Token)
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
                 }
