@@ -1,6 +1,6 @@
 # AadAuthenticationFactory - Entra ID token provider
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](./LICENSE.md)
-[![PowerShell Desktop | Core](https://img.shields.io/badge/PowerShell-Desktop%20|%20Core%207.4+%20-0000FF.svg?logo=PowerShell&style=plastic)](#)
+[![PowerShell Desktop | Core](https://img.shields.io/badge/PowerShell-Desktop%20|%20Core%207.4+%20-blue.svg?logo=PowerShell&style=plastic)](#)
 [![Platform Windows | Mac | Linux](https://img.shields.io/badge/Platform-Windows%20|%20Mac%20|%20Linux%20%20-808080.svg?logo=Amazon%20EC2&style=plastic)](#)
 
 This module provides unified experience for getting and using tokens from Entra ID authentication platform. Experience covers this authentication scenarios:
