@@ -238,6 +238,11 @@ Command shows how to get token as hashtable containing properly formatted Author
         [switch]$AsHashTable,
             #Asks runtime to avoid token cache and get fresh token from AAD
         [switch]$ForceRefresh,
+        [Parameter()]
+        [Microsoft.Identity.Client.WwwAuthenticateParameters]
+            #WwwAuthenticateParameters to be used for re-authentication
+            #This is used when you want to do step-up authentication with AAD and you have the parameters from the WWW-Authenticate header
+        $WwwAuthenticateParameters,
         [Parameter(ValueFromPipeline)]
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory
@@ -299,7 +304,16 @@ Command shows how to get token as hashtable containing properly formatted Author
                     try
                     {
                         Write-Verbose "Getting token for $($account.Username)"
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)
+                        $builder = $builder.WithForceRefresh($forceRefresh)
+                        if($null -ne $WwwAuthenticateParameters)
+                        {
+                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
+                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
+                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+                        }
+
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
@@ -351,6 +365,12 @@ Command shows how to get token as hashtable containing properly formatted Author
                             }
                             $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
                         }
+                        if($null -ne $WwwAuthenticateParameters)
+                        {
+                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
+                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
+                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+                        }
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
@@ -381,7 +401,16 @@ Command shows how to get token as hashtable containing properly formatted Author
                     try
                     {
                         Write-Verbose "Getting token for $($account.Username)"
-                        $task = $factory.AcquireTokenSilent($scopes,$account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)
+                        $builder = $builder.WithForceRefresh($forceRefresh)
+                        if($null -ne $WwwAuthenticateParameters)
+                        {
+                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
+                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
+                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+                        }
+
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
@@ -689,6 +718,12 @@ Get-AadToken command uses explicit factory specified by name to get token.
             #Enables experimental features in MSAL
         $EnableExperimentalFeatures,
 
+        [Parameter(ParameterSetName = 'PublicClient')]
+        [switch]
+            #Enables support for claims request in authentication
+            #Only works with public client flows
+        $WithClaimsRequestSupport,
+
         [Parameter()]
         [string]
             #Name of the factory. 
@@ -795,6 +830,12 @@ Get-AadToken command uses explicit factory specified by name to get token.
                 if($Multicloud)
                 {
                     $builder = $builder.WithMultiCloudSupport($true)
+                }
+                if($WithClaimsRequestSupport)
+                {
+                    $capabilities = new-object System.Collections.Generic.List[string]
+                    $capabilities.Add("cp1") | Out-Null
+                    $builder = $builder.WithClientCapabilities($capabilities)
                 }
                 if($_ -eq 'ResourceOwnerPasssword')
                 {

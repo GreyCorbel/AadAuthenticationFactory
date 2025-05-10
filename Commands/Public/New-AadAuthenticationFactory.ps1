@@ -144,6 +144,12 @@ Get-AadToken command uses explicit factory specified by name to get token.
             #Enables experimental features in MSAL
         $EnableExperimentalFeatures,
 
+        [Parameter(ParameterSetName = 'PublicClient')]
+        [switch]
+            #Enables support for claims request in authentication
+            #Only works with public client flows
+        $WithClaimsRequestSupport,
+
         [Parameter()]
         [string]
             #Name of the factory. 
@@ -250,6 +256,12 @@ Get-AadToken command uses explicit factory specified by name to get token.
                 if($Multicloud)
                 {
                     $builder = $builder.WithMultiCloudSupport($true)
+                }
+                if($WithClaimsRequestSupport)
+                {
+                    $capabilities = new-object System.Collections.Generic.List[string]
+                    $capabilities.Add("cp1") | Out-Null
+                    $builder = $builder.WithClientCapabilities($capabilities)
                 }
                 if($_ -eq 'ResourceOwnerPasssword')
                 {
