@@ -129,6 +129,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
             if($account.count -gt 1)
             {
+                Write-Verbose "Multiple accounts found in cache. Using first one"
                 $account = $account[0]
             }
             switch($Factory.FlowType)

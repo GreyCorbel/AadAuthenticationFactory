@@ -1,4 +1,14 @@
 function AwaitTask {
+    <#
+        .SYNOPSIS
+            Waits for the task to complete and returns the result.
+        .DESCRIPTION
+            Waits for the task to complete and returns the result. If the task is canceled, it will throw an exception.
+        .PARAMETER task
+            The task to wait for.
+        .PARAMETER CancellationTokenSource
+            The cancellation token source to cancel the authentication process if needed.
+    #>
     param (
         [Parameter(ValueFromPipeline, Mandatory)]
         $task,

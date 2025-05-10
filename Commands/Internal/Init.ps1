@@ -89,7 +89,7 @@ function Init
                 break;
             }
         }
-
+        #shall we enforse specific version of TLS?
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         #Add JIT compiled helpers. Load only if not loaded previously
         $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
@@ -102,7 +102,7 @@ function Init
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }
         }
-
+        #cache for auth factories. Cache key is factory name
         if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
         {
             $script:AadAuthenticationFactories = @{}

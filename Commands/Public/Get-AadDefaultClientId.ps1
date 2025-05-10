@@ -9,8 +9,7 @@ function Get-AadDefaultClientId
 
 .OUTPUTS
     Default client id used by module
-
-#>
+    #>
     [CmdletBinding()]
     param
     ( )

@@ -1,6 +1,6 @@
 function Get-PoPNonce
 {
-    <#
+<#
 .SYNOPSIS
     Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
 

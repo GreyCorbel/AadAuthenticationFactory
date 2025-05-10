@@ -8,6 +8,8 @@ function Get-AadAuthenticationFactory
     Returns authentication factory specified by name.
     If no name is specified, returns the last created factory.
     If factory specified by name does not exist, returns null
+    If -All switch is specified, returns all factories created in current session
+    if no factory created yet, returns null
 
 .OUTPUTS
     Authentication factory, or null
