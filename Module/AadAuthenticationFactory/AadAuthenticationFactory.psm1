@@ -97,6 +97,8 @@ function Get-AadAuthenticationFactory
     Returns authentication factory specified by name.
     If no name is specified, returns the last created factory.
     If factory specified by name does not exist, returns null
+    If -All switch is specified, returns all factories created in current session
+    if no factory created yet, returns null
 
 .OUTPUTS
     Authentication factory, or null
@@ -148,8 +150,7 @@ function Get-AadDefaultClientId
 
 .OUTPUTS
     Default client id used by module
-
-#>
+    #>
     [CmdletBinding()]
     param
     ( )
@@ -296,6 +297,7 @@ Command shows how to get token as hashtable containing properly formatted Author
             $account = Get-AadAccount -UserName $UserName -Factory $Factory
             if($account.count -gt 1)
             {
+                Write-Verbose "Multiple accounts found in cache. Using first one"
                 $account = $account[0]
             }
             switch($Factory.FlowType)
@@ -509,7 +511,7 @@ Command shows how to get token as hashtable containing properly formatted Author
 }
 function Get-PoPNonce
 {
-    <#
+<#
 .SYNOPSIS
     Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
 
@@ -1185,6 +1187,16 @@ enum AuthenticationFlow
     ResourceOwnerPassword
 }
 function AwaitTask {
+    <#
+        .SYNOPSIS
+            Waits for the task to complete and returns the result.
+        .DESCRIPTION
+            Waits for the task to complete and returns the result. If the task is canceled, it will throw an exception.
+        .PARAMETER task
+            The task to wait for.
+        .PARAMETER CancellationTokenSource
+            The cancellation token source to cancel the authentication process if needed.
+    #>
     param (
         [Parameter(ValueFromPipeline, Mandatory)]
         $task,
@@ -1333,7 +1345,7 @@ function Init
                 break;
             }
         }
-
+        #shall we enforse specific version of TLS?
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         #Add JIT compiled helpers. Load only if not loaded previously
         $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
@@ -1346,7 +1358,7 @@ function Init
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }
         }
-
+        #cache for auth factories. Cache key is factory name
         if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
         {
             $script:AadAuthenticationFactories = @{}
