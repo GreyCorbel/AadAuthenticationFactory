@@ -13,16 +13,16 @@ function Get-PoPNonce
 #>
     [CmdletBinding()]
     param
-    ( 
-        #Resource to get PoP nonce for
+    (
         [Parameter(Mandatory=$true)]
+            #URI of the resource to get PoP nonce for            
         [string]$Uri,
         [Parameter(Mandatory=$true)]
+            #HTTP method to use for request
         [System.Net.Http.HttpMethod]$Method,
         [Parameter(ValueFromPipeline)]
             #AAD authentication factory created via New-AadAuthenticationFactory
         $Factory = $script:AadLastCreatedFactory
-
     )
     begin
     {

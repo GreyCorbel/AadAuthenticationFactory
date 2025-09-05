@@ -60,11 +60,14 @@ foreach($pkg in $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Na
     {
         "0.16.2" {
             #.NET Framework requires exact version
-            "   .NET Framework"
+<#             "   .NET Framework"
             Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net461',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net461')) -Force
-            break;
+ #>            break;
         }
         default {
+            "   .NET Framework"
+            Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net461',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net461')) -Force
+
             #.NET Core can use any version
             "   .NET Core"
             Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netstandard2.0')) -Force
