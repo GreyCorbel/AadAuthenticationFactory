@@ -863,18 +863,20 @@ Get-AadToken command uses explicit factory specified by name to get token.
                             break
                         }
                         'WAM' {
-                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                            {
+                            
+                            
                                 $flowType = [AuthenticationFlow]::PublicClientWithWam
-                                $opts = new-object Microsoft.Identity.Client.BrokerOptions('Windows')
+                                $opts = new-object Microsoft.Identity.Client.BrokerOptions(`
+                                    [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows `
+                                    -bor [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux `
+                                    -bor [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::MacOS)
+                                $opts.Title = "AadAuthenticationFactory"
                                 $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
                                 $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
                                 $builder = $builder.WithRedirectUri("http://localhost")
-                            }
-                            else
-                            {
-                                throw New-Object System.PlatformNotSupportedException("WAM is only supported on Windows platform")
-                            }
+                            
+                                #throw New-Object System.PlatformNotSupportedException("WAM is only supported on Windows platform")
+                            
                             break
                         }
                         Default {
