@@ -21,13 +21,14 @@ function Init
                 }
                 catch
                 {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.IdentityModel.Abstractions.dll')))
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netcoreapp3.1','Microsoft.Identity.Client.Desktop.dll')))
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.IdentityModel.Abstractions.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll')))
                     #compiling http factory against our version of MSAL library
                     $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll'))
 
                 }
-                #on Windows, load WAM broker
+                #load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll')))
@@ -57,6 +58,7 @@ function Init
                 }
                 catch
                 {
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.Desktop.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.IdentityModel.Abstractions.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll')))
                     $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll'))

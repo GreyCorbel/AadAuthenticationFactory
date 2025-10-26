@@ -863,19 +863,22 @@ Get-AadToken command uses explicit factory specified by name to get token.
                             break
                         }
                         'WAM' {
-                            
-                            
+                            #we do not support WAM on non-windows yet
+                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
+                            {
                                 $flowType = [AuthenticationFlow]::PublicClientWithWam
                                 $opts = new-object Microsoft.Identity.Client.BrokerOptions(`
                                     [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows `
-                                    -bor [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux `
-                                    -bor [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::MacOS)
+                                )
                                 $opts.Title = "AadAuthenticationFactory"
                                 $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
                                 $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
                                 $builder = $builder.WithRedirectUri("http://localhost")
-                            
-                                #throw New-Object System.PlatformNotSupportedException("WAM is only supported on Windows platform")
+                            }
+                            else    
+                            {   
+                                throw New-Object System.PlatformNotSupportedException("WAM is currently only supported on Windows platform")
+                            }
                             
                             break
                         }
@@ -1279,13 +1282,14 @@ function Init
                 }
                 catch
                 {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net6.0','Microsoft.IdentityModel.Abstractions.dll')))
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netcoreapp3.1','Microsoft.Identity.Client.Desktop.dll')))
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.IdentityModel.Abstractions.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll')))
                     #compiling http factory against our version of MSAL library
                     $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll'))
 
                 }
-                #on Windows, load WAM broker
+                #load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll')))
@@ -1315,6 +1319,7 @@ function Init
                 }
                 catch
                 {
+                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.Desktop.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.IdentityModel.Abstractions.dll')))
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll')))
                     $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll'))
