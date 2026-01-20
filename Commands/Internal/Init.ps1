@@ -31,19 +31,31 @@ function Init
                 #load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll')))
+                    #load assembly resolver helper if not loaded previously
+                    <# $helper = 'MsalNativeResolver'
+                    if($null -eq ($helper -as [type]))
+                    {
+                        Write-Verbose "Loading helper $helper"
+                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
+                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+                    } #>
+
+                    $managedPath = [Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll'))
+                    $assembly = [System.Reflection.Assembly]::LoadFrom($managedPath)
                     Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
+                    
                     if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
                         switch($env:PROCESSOR_ARCHITECTURE)
                         {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native')); break;}
+                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native', 'msalruntime.dll')); break;}
+                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
+                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
                         }
                         if(-not [string]::IsNullOrEmpty($runtimePath))
                         {
-                            $env:Path = "$($env:Path);$runtimePath"
+                            #[MsalNativeResolver]::RegisterFor($assembly, $runtimePath)
+                            [System.Runtime.InteropServices.NativeLibrary]::Load($runtimePath)
                         }
                     }
                 }
@@ -66,6 +78,12 @@ function Init
                 #on Windows, load WAM broker
                 if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
                 {
+                    if($null -eq ('Kernel32' -as [type]))
+                    {
+                        Write-Verbose "Loading helper Kernel32"
+                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\Kernel32.cs" -Raw
+                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+                    }
                     if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
                     {
                         Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.NativeInterop.dll')))
@@ -73,13 +91,14 @@ function Init
                         #need to add path to native runtime supporting the broker
                         switch($env:PROCESSOR_ARCHITECTURE)
                         {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native')); break;}
+                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native','msalruntime.dll')); break;}
+                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
+                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
                         }
                         if(-not [string]::IsNullOrEmpty($runtimePath))
                         {
-                            $env:Path = "$($env:Path);$runtimePath"
+                            #$env:Path = "$runtimePath;$($env:Path)"
+                            [Kernel32]::LoadLibrary($runtimePath) | Out-Null
                         }
                     }
                 }
@@ -93,7 +112,11 @@ function Init
         }
         #shall we enforse specific version of TLS?
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        #Add JIT compiled helpers. Load only if not loaded previously
+        #cache for auth factories. Cache key is factory name
+        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
+        {
+            $script:AadAuthenticationFactories = @{}
+        }
         $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
         foreach($helper in $helpers)
         {
@@ -104,10 +127,6 @@ function Init
                 Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
             }
         }
-        #cache for auth factories. Cache key is factory name
-        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
-        {
-            $script:AadAuthenticationFactories = @{}
-        }
+
     }
 }

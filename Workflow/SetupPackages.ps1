@@ -18,6 +18,7 @@ $packages
 if(-not (Test-Path -Path $sharedPath)) { New-Item -ItemType Directory -Path $sharedPath | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net461')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net461')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net462')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net462')) | Out-Null}
+if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net9.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net9.0')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netstandard2.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netstandard2.0')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net8.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net8.0')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netcoreapp3.1')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netcoreapp3.1')) | Out-Null}
