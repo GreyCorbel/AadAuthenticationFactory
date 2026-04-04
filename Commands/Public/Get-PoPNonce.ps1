@@ -2,13 +2,34 @@ function Get-PoPNonce
 {
 <#
 .SYNOPSIS
-    Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
+    Retrieves a Proof-of-Possession nonce from a resource.
 
 .DESCRIPTION
-    Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
+    Sends an unauthenticated request to a resource and inspects the
+    WWW-Authenticate response headers for a PoP challenge. If the resource
+    advertises PoP and provides a nonce, that nonce is returned; otherwise the
+    command returns $null.
+
+.PARAMETER Uri
+    Resource URI to probe for a PoP challenge.
+
+.PARAMETER Method
+    HTTP method to use when probing the resource.
+
+.PARAMETER Factory
+    Authentication factory whose HTTP client should be used to send the request.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    String with PoP nonce, or $null if resource does not support PoP
+    System.String or $null
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://myapi/.default') -AuthMode Broker
+Get-PoPNonce -Uri 'https://myapi.contoso.com/items' -Method ([System.Net.Http.HttpMethod]::Get) -Factory $factory
+
+Description
+-----------
+Checks whether the target API challenges clients for a PoP token and returns the nonce if one is provided.
 
 #>
     [CmdletBinding()]

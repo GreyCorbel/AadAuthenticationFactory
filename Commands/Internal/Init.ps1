@@ -1,132 +1,188 @@
-function Init
-{
+function Init {
     param()
 
-    process
-    {
+    process {
+        $moduleRoot = $PSScriptRoot
+
+        # Base referenced assemblies used for compiling helper .cs files
         $referencedAssemblies = @('System.Net.Http')
-        #load is platform specific
-        switch($PSEdition)
-        {
-            'Core'
-            {
-                $referencedAssemblies+="System.Net.Primitives"
-                $referencedAssemblies+="System.Net.WebProxy"
-                $referencedAssemblies+="System.Console"
-                
-                try {
-                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
-                    #compiling http factory against version of preloaded package
-                    $referencedAssemblies+=$existingType.Assembly.Location
-                }
-                catch
-                {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netcoreapp3.1','Microsoft.Identity.Client.Desktop.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll')))
-                    #compiling http factory against our version of MSAL library
-                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll'))
 
-                }
-                #load WAM broker
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
-                {
-                    #load assembly resolver helper if not loaded previously
-                    <# $helper = 'MsalNativeResolver'
-                    if($null -eq ($helper -as [type]))
-                    {
-                        Write-Verbose "Loading helper $helper"
-                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
-                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-                    } #>
-
-                    $managedPath = [Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll'))
-                    $assembly = [System.Reflection.Assembly]::LoadFrom($managedPath)
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
-                    
-                    if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                    {
-                        switch($env:PROCESSOR_ARCHITECTURE)
-                        {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native', 'msalruntime.dll')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
-                        }
-                        if(-not [string]::IsNullOrEmpty($runtimePath))
-                        {
-                            #[MsalNativeResolver]::RegisterFor($assembly, $runtimePath)
-                            [System.Runtime.InteropServices.NativeLibrary]::Load($runtimePath)
-                        }
-                    }
-                }
-                break;
-            }
-            'Desktop'
-            {
-                try {
-                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
-                    #compiling http factory against version of preloaded package
-                    $referencedAssemblies+=$existingType.Assembly.Location
-                }
-                catch
-                {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.Desktop.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll')))
-                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll'))
-                }
-                #on Windows, load WAM broker
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
-                {
-                    if($null -eq ('Kernel32' -as [type]))
-                    {
-                        Write-Verbose "Loading helper Kernel32"
-                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\Kernel32.cs" -Raw
-                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-                    }
-                    if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                    {
-                        Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.NativeInterop.dll')))
-                        Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
-                        #need to add path to native runtime supporting the broker
-                        switch($env:PROCESSOR_ARCHITECTURE)
-                        {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native','msalruntime.dll')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
-                        }
-                        if(-not [string]::IsNullOrEmpty($runtimePath))
-                        {
-                            #$env:Path = "$runtimePath;$($env:Path)"
-                            [Kernel32]::LoadLibrary($runtimePath) | Out-Null
-                        }
-                    }
-                }
-
-                #on desktop, this one is not pre-loaded
-                Add-Type -Assembly System.Net.Http
-        
-                #for desktop, we do not use separate app domain (will add if needed)
-                break;
-            }
+        # Some hosts require TLS 1.2; keep your existing behavior
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        } catch {
+            # On newer .NET this may be ignored; safe to swallow
         }
-        #shall we enforse specific version of TLS?
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        #cache for auth factories. Cache key is factory name
-        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
-        {
+
+        # Initialize cache for factories
+        if ($null -eq $script:AadAuthenticationFactories -or -not ($script:AadAuthenticationFactories -is [hashtable])) {
             $script:AadAuthenticationFactories = @{}
         }
-        $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
-        foreach($helper in $helpers)
-        {
-            if($null -eq ($helper -as [type]))
-            {
-                Write-Verbose "Loading helper $helper"
-                $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
-                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+
+        # --------------------------------------------------------
+        # Determine whether MSAL is already loaded
+        # --------------------------------------------------------
+        $msalAlreadyLoaded = $false
+        $msalAssemblyPath  = $null
+        $msalLoadedVersion = $null
+
+        try {
+            $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+
+            # --- Warnings ---
+            # 1) Always warn that MSAL is already loaded (but keep it informative)
+            Write-Verbose "MSAL already loaded in session: $msalAssemblyPath (v$msalLoadedVersion). AadAuthenticationFactory will reuse it."
+
+            # 2) Warn if versions differ (this is the dangerous case)
+            if ($moduleMsalVersion -and ($moduleMsalVersion -ne $msalLoadedVersion)) {
+                Write-Warning ("AadAuthenticationFactory ships MSAL v{0} at '{1}', but the session already loaded MSAL v{2} from '{3}'. " +
+                            "PowerShell loads assemblies into a shared context, so version conflicts are common. " +
+                            "If authentication fails, start a new session and import AadAuthenticationFactory first (before Az/Graph/EXO modules)." -f `
+                            $moduleMsalVersion, $moduleMsalPath, $msalLoadedVersion, $msalAssemblyPath)
+            }
+
+            # 3) If versions match but paths differ, warn at Verbose (or Warning if you prefer)
+            elseif ($moduleMsalVersion -and ($moduleMsalPath -and ($moduleMsalPath -ne $msalAssemblyPath))) {
+                Write-Verbose ("MSAL version matches (v{0}) but was loaded from a different path. " +
+                            "Module path: '{1}'. Loaded path: '{2}'." -f $msalLoadedVersion, $moduleMsalPath, $msalAssemblyPath)
+            }
+
+            $msalAlreadyLoaded = $true
+            $msalAssemblyPath  = $existingType.Assembly.Location
+            $msalLoadedVersion = $existingType.Assembly.GetName().Version
+            Write-Verbose "MSAL already loaded from: $msalAssemblyPath (v$msalLoadedVersion)"
+        } catch {
+            # Not loaded yet
+        }
+
+        # --------------------------------------------------------
+        # Select module-shipped MSAL directories
+        # --------------------------------------------------------
+        $sharedDir = $null
+        $sharedMsalPath = $null
+
+        if ($PSEdition -eq 'Core') {
+            # PS7.3+: prefer netstandard2.0
+            $sharedDir = Resolve-MsalSharedDirForCore -ModuleRoot $moduleRoot
+            $brokerDir = Join-Path $moduleRoot 'shared\netstandard2.0'
+
+            # Extra references commonly needed in PS Core for compiling helpers
+            $referencedAssemblies += 'System.Net.Primitives'
+            $referencedAssemblies += 'System.Net.WebProxy'
+            $referencedAssemblies += 'System.Console'
+            $referencedAssemblies += 'netstandard'
+        }
+        else {
+            # Windows PowerShell 5.1: use net462
+            $sharedDir = Join-Path $moduleRoot 'shared\net462'
+            $brokerDir = Join-Path $moduleRoot 'shared\net462'
+        }
+
+        $sharedMsalPath = Join-Path $sharedDir 'Microsoft.Identity.Client.dll'
+        $sharedMsalVersion = if (Test-Path $sharedMsalPath) { Get-AssemblyVersionFromPath -Path $sharedMsalPath } else { $null }
+
+        # Broker bits are typically netstandard2.0
+        $brokerDll = Join-Path $brokerDir 'Microsoft.Identity.Client.Broker.dll'
+        $brokerInteropDll = Join-Path $brokerDir 'Microsoft.Identity.Client.NativeInterop.dll'
+        $brokerVersion = if (Test-Path $brokerDll) { Get-AssemblyVersionFromPath -Path $brokerDll } else { $null }
+
+        # --------------------------------------------------------
+        # Load MSAL managed assemblies if not already loaded
+        # --------------------------------------------------------
+        if (-not $msalAlreadyLoaded) {
+            # Load dependencies first (best-effort)
+            $deps = @('System.Buffers.dll', 'System.Numerics.Vectors.dll', 'System.Runtime.CompilerServices.Unsafe.dll', 'System.Memory.dll', 'System.Diagnostics.DiagnosticSource.dll', 'Microsoft.IdentityModel.Abstractions.dll', 'System.Formats.Asn1.dll', 'System.ValueTuple.dll' )
+            foreach($dep in $deps) {
+                $depPath = Join-Path $sharedDir $dep
+                if (Test-Path $depPath) {
+                    Write-Verbose "Loading dependency: $depPath"
+                    Add-TypeSafePath -Path $depPath | Out-Null
+                }
+            }
+            if (-not (Test-Path $sharedMsalPath)) {
+                throw "MSAL not found at $sharedMsalPath. Populate Shared folder appropriately."
+            }
+
+            Add-Type -Path $sharedMsalPath -ErrorAction Stop | Out-Null
+
+            $msalAssemblyPath  = $sharedMsalPath
+            $msalLoadedVersion = ([Assembly]::LoadFrom($sharedMsalPath)).GetName().Version
+            Write-Verbose "Loaded MSAL from module: $msalAssemblyPath (v$msalLoadedVersion)"
+        }
+        else {
+            # MSAL was already loaded; use it for helper compilation reference
+            # Also, if your shipped broker version doesn't match MSAL, we may skip loading broker
+            if ($sharedMsalVersion -and $msalLoadedVersion -and ($sharedMsalVersion -ne $msalLoadedVersion)) {
+                Write-Verbose "Module-shipped MSAL version is $sharedMsalVersion but session already has $msalLoadedVersion. Will not attempt to load another MSAL copy."
             }
         }
 
+        # Ensure helper compilation references MSAL assembly currently in use
+        if ($msalAssemblyPath) {
+            $referencedAssemblies += $msalAssemblyPath
+        }
+
+        # Desktop: ensure System.Net.Http is available
+        if ($PSEdition -ne 'Core') {
+            Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue | Out-Null
+        }
+
+        # --------------------------------------------------------
+        # Load Broker (if not loaded) + native runtime (cross-platform)
+        # --------------------------------------------------------
+        $brokerTypePresent = ($null -ne ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+        if (-not $brokerTypePresent) {
+
+            # If MSAL already loaded from elsewhere, ensure broker version matches MSAL version before loading
+            if ($msalLoadedVersion -and $brokerVersion -and ($msalLoadedVersion -ne $brokerVersion)) {
+                Write-Warning ("MSAL version in session is {0} but module broker is {1}. " +
+                               "Skipping broker load to avoid version conflicts. " +
+                               "Broker-based auth may be unavailable; browser/device-code fallback still works." -f $msalLoadedVersion, $brokerVersion)
+            }
+            else {
+                # Load managed broker interop if present
+                <# if (Test-Path $brokerInteropDll) {
+                    [Assembly]::LoadFrom($brokerInteropDll) | Out-Null
+                } #>
+
+                # Load broker extension assembly
+                if (-not (Test-Path $brokerDll)) {
+                    Write-Warning "Broker DLL not found at $brokerDll. Broker-based auth will be unavailable."
+                }
+                else {
+                    Add-Type -Path $brokerDll -ErrorAction Stop | Out-Null
+
+                    # Load native runtime for broker (Windows/Linux/macOS)
+                    Import-MsalNativeRuntime -ModuleRoot $moduleRoot
+                }
+            }
+        }
+
+        # --------------------------------------------------------
+        # Compile helper .cs files (your existing pattern)
+        # --------------------------------------------------------
+        $helpers = @('GcMsalHttpClientFactory', 'DeviceCodeHandler', 'ParentWindowHelper')
+
+        foreach ($helper in $helpers) {
+            if ($null -eq ($helper -as [type])) {
+                $helperPath = Join-Path $moduleRoot ("Helpers\{0}.cs" -f $helper)
+                if (-not (Test-Path $helperPath)) {
+                    Write-Verbose "Helper $helper not found at $helperPath - skipping."
+                    continue
+                }
+
+                Write-Verbose "Compiling helper $helper"
+                $helperDefinition = Get-Content $helperPath -Raw
+
+                Add-Type -TypeDefinition $helperDefinition `
+                    -ReferencedAssemblies $referencedAssemblies `
+                    -WarningAction SilentlyContinue -IgnoreWarnings | Out-Null
+            }
+        }
+
+        # --------------------------------------------------------
+        # Done
+        # --------------------------------------------------------
+        Write-Verbose "Init completed. MSAL v$msalLoadedVersion; Broker loaded: $(-not (-not ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])))"
     }
 }

@@ -2,32 +2,52 @@ function Test-AadToken
 {
     <#
 .SYNOPSIS
-    Parses and validates AAD-issued token
+    Parses and validates an Entra ID token.
 
 .DESCRIPTION
-    Parses provided IdToken or AccessToken and checks for its validity.
-    Note that some tokens may not be properly validated - this is in case then 'nonce' field present and set in the haeder. AAD issues such tokens for Graph API and nonce is taken into consideration when validating the token.
-    See discussion at https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for more details.
+    Parses a JWT access token or ID token and validates its signature against the
+    issuer's OpenID configuration and signing keys. The Token parameter accepts a
+    raw JWT string, an AuthenticationResult returned by Get-AadToken, or a
+    hashtable containing an Authorization header.
+    Some tokens that contain nonce-related header data may not validate cleanly.
+    See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for details.
+
+.PARAMETER Token
+    Raw JWT string, AuthenticationResult, or Authorization header hashtable.
+
+.PARAMETER OidcConfigUri
+    OpenID configuration endpoint to use instead of deriving it from the token.
+
+.PARAMETER PayloadOnly
+    Returns only the parsed payload claims instead of the full validation result.
 
 .OUTPUTS
-    Parsed token and information about its validity
+    Token validation result object or the parsed token payload
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
 $token = $factory | Get-AadToken
 $token.idToken | Test-AadToken | fl
 
 Description
 -----------
-Command creates authentication factory, asks it to issue token for EventGrid and parses IdToken and validates it
+Acquires a token, extracts the ID token, and validates it.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
 Get-AadToken | Test-AadToken -PayloadOnly
 
 Description
 -----------
-Command creates authentication factory, asks it to issue token for MS Graph and parses AccessToken (this is token to use when passing complete response from Get-AadToken), validates it and shows claims contained
+Acquires an access token, validates it, and returns only the parsed claims.
+
+.EXAMPLE
+$headers = Get-AadToken -AsHashtable
+Test-AadToken -Token $headers
+
+Description
+-----------
+Validates a bearer token when it is supplied as an Authorization header hashtable.
 #>
 [CmdletBinding()]
     param (

@@ -1,39 +1,48 @@
+using namespace System
 using namespace System.IO
-using namespace System.Text
 using namespace System.Runtime.InteropServices
+using namespace System.Reflection
 #region Public commands
 function Get-AadAccount
 {
     <#
 .SYNOPSIS
-    Returns account(s) from AAD authentication factory cache
+    Returns cached Entra ID accounts from an authentication factory.
 
 .DESCRIPTION
-    For supported factory types, command returns either account(s) that match provided user account, or all accounts available in the cche.
-    For unsupported factories (those working with Managed Identities) does not return anything
+    Returns cached account objects for a public client authentication factory.
+    When UserName is specified, the command filters cached accounts by using
+    PowerShell's -match operator against the account user name.
+    Managed identity and other non-public client factories do not return accounts.
+
+.PARAMETER UserName
+    Optional user name pattern used to filter cached accounts.
+
+.PARAMETER Factory
+    Authentication factory instance, or the name of a previously created factory.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    One or more accounts found in factory cache
+    Microsoft.Identity.Client.IAccount
 
 .NOTES
-    Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
+    UserName filtering uses the PowerShell -match operator.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://management.azure.com/.default') -AuthMode Interactive
 Get-AadToken
 Get-AadAccount
 
 Description
 -----------
-Returns all accounts from cache of most recently created factory.
+Returns all cached accounts for the most recently created public client factory.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadAccount -UserName John
+Get-AadAccount -Factory 'Default' -UserName 'john'
 
 Description
 -----------
-Returns all accounts from factory cache that match pattern 'John'.
+Returns cached accounts from the named factory whose user name matches 'john'.
 
 #>
     [CmdletBinding()]
@@ -91,17 +100,44 @@ function Get-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Returns authentication factory specified by name or most recently created factory
+    Returns one or more authentication factories from the current session.
 
 .DESCRIPTION
-    Returns authentication factory specified by name.
-    If no name is specified, returns the last created factory.
-    If factory specified by name does not exist, returns null
-    If -All switch is specified, returns all factories created in current session
-    if no factory created yet, returns null
+    Returns the authentication factory specified by name.
+    If Name is not specified, the most recently created factory is returned.
+    When All is specified, all factories created in the current session are returned.
+    If a requested factory does not exist, the command returns $null.
+
+.PARAMETER Name
+    Name of the factory to retrieve. If omitted, the most recently created
+    factory is returned.
+
+.PARAMETER All
+    Returns every authentication factory created in the current session.
 
 .OUTPUTS
-    Authentication factory, or null
+    Authentication factory object, a collection of factories, or $null
+
+.EXAMPLE
+Get-AadAuthenticationFactory
+
+Description
+-----------
+Returns the most recently created authentication factory.
+
+.EXAMPLE
+Get-AadAuthenticationFactory -Name 'Vault'
+
+Description
+-----------
+Returns the factory created with the name 'Vault', or $null if it does not exist.
+
+.EXAMPLE
+Get-AadAuthenticationFactory -All
+
+Description
+-----------
+Returns all authentication factories created in the current PowerShell session.
 
 #>
     [CmdletBinding(DefaultParameterSetName = 'SpecificFactory')]
@@ -143,13 +179,23 @@ function Get-AadDefaultClientId
 {
     <#
 .SYNOPSIS
-    Returns default AAD client ID used by module, which is client id for Azure Powershell
+    Returns the module's default Entra ID client ID.
 
 .DESCRIPTION
-    Returns default AAD client ID used by module, which is client id for Azure Powershell
+    Returns the default client ID used when New-AadAuthenticationFactory is
+    called without an explicit ClientId. The configured default is the Azure
+    PowerShell public client application ID.
 
 .OUTPUTS
-    Default client id used by module
+    System.String
+
+.EXAMPLE
+Get-AadDefaultClientId
+
+Description
+-----------
+Returns the client ID that the module uses by default for public client flows.
+
     #>
     [CmdletBinding()]
     param
@@ -165,48 +211,90 @@ function Get-AadToken
 {
     <#
 .SYNOPSIS
-    Retrieves AAD token according to configuration of authentication factory
+    Acquires an Entra ID token from an authentication factory.
 
 .DESCRIPTION
-    Retrieves AAD token according to configuration of authentication factory
+    Requests a token by using the flow configured in an AadAuthenticationFactory
+    instance. Depending on the factory type, the command can acquire delegated,
+    application, on-behalf-of, broker, device code, or managed identity tokens.
+    The command can also return an Authorization header hashtable or request a
+    Proof-of-Possession token when supported.
+
+.PARAMETER Scopes
+    Scopes to request. If omitted, the factory's DefaultScopes value is used.
+
+.PARAMETER UserName
+    User name hint used during authentication or to select a cached account.
+
+.PARAMETER UserToken
+    Access token representing the calling user for on-behalf-of flows.
+    This is supported only with confidential client factories.
+
+.PARAMETER PopHttpMethod
+    HTTP method to bind to a Proof-of-Possession token request.
+    Used only when PopRequestUri is specified.
+
+.PARAMETER PoPRequestUri
+    Resource URI to bind to a Proof-of-Possession token request.
+
+.PARAMETER AsHashTable
+    Returns a hashtable containing an Authorization header instead of the raw
+    authentication result.
+
+.PARAMETER ForceRefresh
+    Forces token acquisition to bypass cached access tokens where supported.
+
+.PARAMETER WwwAuthenticateParameters
+    WWW-Authenticate parameters used for step-up authentication or CAE reauth.
+
+.PARAMETER Factory
+    Authentication factory instance, or the name of a previously created factory.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    Authentication result from AAD with tokens and other information, or hashtable with Authorization header
+    Microsoft.Identity.Client.AuthenticationResult or System.Collections.Hashtable
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://management.azure.com/.default') -AuthMode Interactive
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command creates authentication factory and retrieves AAD token from it, authenticating user via web view or browser
+Creates a public client factory and acquires a delegated token interactively.
 
 .EXAMPLE
-$cosmosDbAccountName = 'myCosmosDBAcct
+$cosmosDbAccountName = 'myCosmosDbAccount'
 $factory = New-AadAuthenticationFactory -DefaultScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command creates authentication factory and retrieves AAD token for access data plane of cosmos DB aaccount.
-For details on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
+Creates a managed identity factory and acquires a token for Azure Cosmos DB.
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com -AuthMode WIA
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -AuthMode WIA
 $token = $factory | Get-AadToken -Scopes @('https://eventgrid.azure.net/.default')
 
 Description
 -----------
-Command creates authentication factory without default scopes and retrieves AAD token for access to event grid, specifying scopes when asking for token
+Requests a token by specifying scopes at call time instead of on the factory.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/myapi/.default') -AuthMode WIA
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://mycompany.com/myapi/.default') -AuthMode Interactive
 $headers = Get-AadToken -AsHashtable
-Invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
+Invoke-RestMethod -Uri 'https://myapi.mycompany.com/items' -Headers $headers
 
 Description
 -----------
-Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
+Returns an Authorization header hashtable that can be used with Invoke-RestMethod.
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://middle-tier/.default') -ClientSecret $env:API_SECRET -ClientId '11111111-1111-1111-1111-111111111111'
+$token = Get-AadToken -Factory $factory -Scopes @('https://graph.microsoft.com/.default') -UserToken $incomingAccessToken
+
+Description
+-----------
+Uses a confidential client factory to perform an on-behalf-of token request.
 
 #>
     [CmdletBinding()]
@@ -345,8 +433,8 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithWam) {
                     if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
                     {
-                        Write-Verbose "Getting token for OperatingSystemAccount"
-                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
+                        <# Write-Verbose "Getting token for OperatingSystemAccount"
+                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount #>
                     }
                     try
                     {
@@ -513,13 +601,34 @@ function Get-PoPNonce
 {
 <#
 .SYNOPSIS
-    Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
+    Retrieves a Proof-of-Possession nonce from a resource.
 
 .DESCRIPTION
-    Returns Proof-of-Possession nonce from resource, or $null if resource does nto support PoP
+    Sends an unauthenticated request to a resource and inspects the
+    WWW-Authenticate response headers for a PoP challenge. If the resource
+    advertises PoP and provides a nonce, that nonce is returned; otherwise the
+    command returns $null.
+
+.PARAMETER Uri
+    Resource URI to probe for a PoP challenge.
+
+.PARAMETER Method
+    HTTP method to use when probing the resource.
+
+.PARAMETER Factory
+    Authentication factory whose HTTP client should be used to send the request.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    String with PoP nonce, or $null if resource does not support PoP
+    System.String or $null
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://myapi/.default') -AuthMode Broker
+Get-PoPNonce -Uri 'https://myapi.contoso.com/items' -Method ([System.Net.Http.HttpMethod]::Get) -Factory $factory
+
+Description
+-----------
+Checks whether the target API challenges clients for a PoP token and returns the nonce if one is provided.
 
 #>
     [CmdletBinding()]
@@ -578,41 +687,111 @@ function New-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Creates authentication factory with provided parameters for Public or Confidential client flows
+    Creates an authentication factory for Entra ID token acquisition.
 
 .DESCRIPTION
-    Creates authentication factory with provided parameters for Public or Confidential client flows
-    Authentication uses by default well-know clientId of Azure Powershell, but can accept clientId of app registered in your own tenant.
+    Creates a reusable authentication factory configured for public client,
+    confidential client, resource owner password, broker, or managed identity
+    authentication flows. If ClientId is omitted, the module uses its configured
+    default Azure PowerShell client ID.
+
+.PARAMETER DefaultScopes
+    Default scopes requested when Get-AadToken is called without -Scopes.
+
+.PARAMETER TenantId
+    Tenant identifier or verified domain name. You can also use values such as
+    organizations, common, or consumers where supported.
+
+.PARAMETER ClientId
+    Application client ID. If omitted, the module's default client ID is used.
+
+.PARAMETER RedirectUri
+    Redirect URI to use for public or confidential client authentication.
+
+.PARAMETER ClientSecret
+    Client secret used for confidential client authentication.
+
+.PARAMETER ResourceOwnerCredential
+    Credentials used for the resource owner password flow.
+
+.PARAMETER X509Certificate
+    Certificate used for confidential client authentication.
+
+.PARAMETER Assertion
+    Client assertion JWT used for federated confidential client authentication.
+
+.PARAMETER LoginApi
+    Base login endpoint. Defaults to the public Azure cloud endpoint.
+
+.PARAMETER B2CPolicy
+    Azure AD B2C policy name used to build the B2C authority.
+
+.PARAMETER AuthMode
+    Public client authentication mode: Interactive, DeviceCode, WIA, WAM, or Broker.
+
+.PARAMETER DefaultUserName
+    Optional login hint used by public client interactive authentication.
+
+.PARAMETER UseManagedIdentity
+    Creates a managed identity factory instead of an MSAL public or confidential client.
+
+.PARAMETER Multicloud
+    Enables multicloud token acquisition for supported public client scenarios.
+
+.PARAMETER EnableExperimentalFeatures
+    Enables MSAL experimental features on the created factory.
+
+.PARAMETER WithClaimsRequestSupport
+    Enables claims request support for public client flows.
+
+.PARAMETER Name
+    Optional case-insensitive name used to store the factory for later retrieval.
+
+.PARAMETER Proxy
+    Web proxy configuration used by the factory's HTTP client.
 
 .OUTPUTS
     AadAuthenticationFactory object
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://my-db.documents.azure.com/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://my-db.documents.azure.com/.default') -AuthMode Interactive
 
 Description
 -----------
-This command returns AAD authentication factory for Public client auth flow with well-known clientId for Azure PowerShell and interactive authentication for getting tokens for CosmosDB account
+Creates a public client factory that can acquire delegated tokens interactively.
 
 .EXAMPLE
 $proxy=new-object System.Net.WebProxy('http://myproxy.mycompany.com:8080')
 $proxy.BypassProxyOnLocal=$true
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode deviceCode -Proxy $proxy
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode DeviceCode -Proxy $proxy
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command works in on prem environment where access to internet is available via proxy. Command authenticates user with device code flow.
+Creates a device code factory that uses a custom outbound proxy.
 
 .EXAMPLE
 $creds = Get-Credential
-New-AadAuthenticationFactory -Name 'Vault' -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
+New-AadAuthenticationFactory -Name 'Vault' -TenantId 'contoso.onmicrosoft.com' -ResourceOwnerCredential $creds -DefaultScopes 'https://vault.azure.net/.default'
 $vaultToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name 'Vault')
 
 Description
 -----------
-Command collects credentials of cloud-only account and authenticates with Resource Owner Password flow to get access token for Azure KeyVault.
-Get-AadToken command uses explicit factory specified by name to get token.
+Creates a named resource owner password factory and retrieves a token from it.
+
+.EXAMPLE
+New-AadAuthenticationFactory -ClientId '22222222-2222-2222-2222-222222222222' -ClientSecret $env:CLIENT_SECRET -TenantId 'contoso.onmicrosoft.com' -DefaultScopes @('https://graph.microsoft.com/.default')
+
+Description
+-----------
+Creates a confidential client factory that acquires application tokens by using a client secret.
+
+.EXAMPLE
+New-AadAuthenticationFactory -ClientId '33333333-3333-3333-3333-333333333333' -TenantId 'contoso.onmicrosoft.com' -AuthMode Broker -DefaultScopes @('https://management.azure.com/.default')
+
+Description
+-----------
+Creates a public client factory that uses the OS broker where available.
 #>
 
     param
@@ -692,7 +871,7 @@ Get-AadToken command uses explicit factory specified by name to get token.
         $B2CPolicy,
 
         [Parameter(Mandatory, ParameterSetName = 'PublicClient')]
-        [ValidateSet('Interactive', 'DeviceCode', 'WIA', 'WAM')]
+        [ValidateSet('Interactive', 'DeviceCode', 'WIA', 'WAM', 'Broker')]
         [string]
             #How to authenticate client - via web view, via device code flow, or via Windows Integrated Auth
             #Used in public client flows
@@ -862,24 +1041,20 @@ Get-AadToken command uses explicit factory specified by name to get token.
                             $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
                             break
                         }
-                        'WAM' {
-                            #we do not support WAM on non-windows yet
-                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                            {
-                                $flowType = [AuthenticationFlow]::PublicClientWithWam
-                                $opts = new-object Microsoft.Identity.Client.BrokerOptions(`
-                                    [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows `
-                                )
-                                $opts.Title = "AadAuthenticationFactory"
-                                $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
-                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
-                                $builder = $builder.WithRedirectUri("http://localhost")
-                            }
-                            else    
-                            {   
-                                throw New-Object System.PlatformNotSupportedException("WAM is currently only supported on Windows platform")
-                            }
+                        {$_ -in 'WAM','Broker'} {
                             
+                            $flowType = [AuthenticationFlow]::PublicClientWithWam
+                            $os =
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows -bor
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux   -bor
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::OSX
+
+                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($os)
+                            $brokerOptions.Title = "AadAuthenticationFactory"
+                            $brokerOptions.ListOperatingSystemAccounts = $true
+                            $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$brokerOptions)
+                            $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                            $builder = $builder.WithRedirectUri("http://localhost")
                             break
                         }
                         Default {
@@ -936,32 +1111,52 @@ function Test-AadToken
 {
     <#
 .SYNOPSIS
-    Parses and validates AAD-issued token
+    Parses and validates an Entra ID token.
 
 .DESCRIPTION
-    Parses provided IdToken or AccessToken and checks for its validity.
-    Note that some tokens may not be properly validated - this is in case then 'nonce' field present and set in the haeder. AAD issues such tokens for Graph API and nonce is taken into consideration when validating the token.
-    See discussion at https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for more details.
+    Parses a JWT access token or ID token and validates its signature against the
+    issuer's OpenID configuration and signing keys. The Token parameter accepts a
+    raw JWT string, an AuthenticationResult returned by Get-AadToken, or a
+    hashtable containing an Authorization header.
+    Some tokens that contain nonce-related header data may not validate cleanly.
+    See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for details.
+
+.PARAMETER Token
+    Raw JWT string, AuthenticationResult, or Authorization header hashtable.
+
+.PARAMETER OidcConfigUri
+    OpenID configuration endpoint to use instead of deriving it from the token.
+
+.PARAMETER PayloadOnly
+    Returns only the parsed payload claims instead of the full validation result.
 
 .OUTPUTS
-    Parsed token and information about its validity
+    Token validation result object or the parsed token payload
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
 $token = $factory | Get-AadToken
 $token.idToken | Test-AadToken | fl
 
 Description
 -----------
-Command creates authentication factory, asks it to issue token for EventGrid and parses IdToken and validates it
+Acquires a token, extracts the ID token, and validates it.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
 Get-AadToken | Test-AadToken -PayloadOnly
 
 Description
 -----------
-Command creates authentication factory, asks it to issue token for MS Graph and parses AccessToken (this is token to use when passing complete response from Get-AadToken), validates it and shows claims contained
+Acquires an access token, validates it, and returns only the parsed claims.
+
+.EXAMPLE
+$headers = Get-AadToken -AsHashtable
+Test-AadToken -Token $headers
+
+Description
+-----------
+Validates a bearer token when it is supplied as an Authorization header hashtable.
 #>
 [CmdletBinding()]
     param (
@@ -1172,6 +1367,15 @@ Command creates authentication factory, asks it to issue token for MS Graph and 
 }
 #endregion Public commands
 #region Internal commands
+function Add-TypeSafePath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (Test-Path $Path) {
+        Add-Type -Path $Path -ErrorAction Stop | Out-Null
+        return $true
+    }
+    return $false
+}
 enum AuthenticationFlow
 {
     #Public client with browser based auth
@@ -1259,137 +1463,289 @@ function Base64UrlDecode
         $result
     }
 }
-function Init
-{
+function Get-AssemblyVersionFromPath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    try {
+        return [AssemblyName]::GetAssemblyName($Path).Version
+    } catch {
+        return $null
+    }
+}
+function Get-MsalRuntimeRidFolder {
+    # returns one of: win-x64, win-x86, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        switch ($arch) {
+            'X64'   { return 'win-x64' }
+            'X86'   { return 'win-x86' }
+            'Arm64' { return 'win-arm64' }
+            default { return 'win-x64' }
+        }
+    }
+    elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) {
+        switch ($arch) {
+            'X64'   { return 'linux-x64' }
+            'Arm64' { return 'linux-arm64' }
+            default { return 'linux-x64' }
+        }
+    }
+    elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+        switch ($arch) {
+            'X64'   { return 'osx-x64' }
+            'Arm64' { return 'osx-arm64' }
+            default { return 'osx-x64' }
+        }
+    }
+
+    return $null
+}
+function Import-MsalNativeRuntime {
+    param(
+        [Parameter(Mandatory)] [string] $ModuleRoot
+    )
+
+    $rid = Get-MsalRuntimeRidFolder
+    if ([string]::IsNullOrEmpty($rid)) { return }
+
+    # IMPORTANT: your folder is lowercase "runtimes"
+    $nativeDir = Join-Path $ModuleRoot "runtimes\$rid\native"
+    if (-not (Test-Path $nativeDir)) { return }
+
+    $candidate = Get-ChildItem -Path $nativeDir -File |
+        Where-Object {
+            $_.Name -match '^msalruntime' -and $_.Extension -in @('.dll','.so','.dylib')
+        } |
+        Select-Object -First 1
+
+    if (-not $candidate) {
+        Write-Verbose "MSAL native runtime not found in $nativeDir"
+        return
+    }
+
+    if ($PSEdition -eq 'Core') {
+        [System.Runtime.InteropServices.NativeLibrary]::Load($candidate.FullName) | Out-Null
+    }
+    else {
+        # Windows PowerShell 5.1 is Windows-only; LoadLibrary is fine
+        if ($null -eq ('Kernel32' -as [type])) {
+            $helperDefinition = Get-Content (Join-Path $ModuleRoot 'Helpers\Kernel32.cs') -Raw
+            Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
+        }
+        [Kernel32]::LoadLibrary($candidate.FullName) | Out-Null
+    }
+
+    Write-Verbose "Loaded MSAL native runtime: $($candidate.FullName)"
+}
+function Init {
     param()
 
-    process
-    {
+    process {
+        $moduleRoot = $PSScriptRoot
+
+        # Base referenced assemblies used for compiling helper .cs files
         $referencedAssemblies = @('System.Net.Http')
-        #load is platform specific
-        switch($PSEdition)
-        {
-            'Core'
-            {
-                $referencedAssemblies+="System.Net.Primitives"
-                $referencedAssemblies+="System.Net.WebProxy"
-                $referencedAssemblies+="System.Console"
-                
-                try {
-                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
-                    #compiling http factory against version of preloaded package
-                    $referencedAssemblies+=$existingType.Assembly.Location
-                }
-                catch
-                {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netcoreapp3.1','Microsoft.Identity.Client.Desktop.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll')))
-                    #compiling http factory against our version of MSAL library
-                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net8.0','Microsoft.Identity.Client.dll'))
 
-                }
-                #load WAM broker
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
-                {
-                    #load assembly resolver helper if not loaded previously
-                    <# $helper = 'MsalNativeResolver'
-                    if($null -eq ($helper -as [type]))
-                    {
-                        Write-Verbose "Loading helper $helper"
-                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
-                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-                    } #>
-
-                    $managedPath = [Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.NativeInterop.dll'))
-                    $assembly = [System.Reflection.Assembly]::LoadFrom($managedPath)
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
-                    
-                    if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                    {
-                        switch($env:PROCESSOR_ARCHITECTURE)
-                        {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native', 'msalruntime.dll')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
-                        }
-                        if(-not [string]::IsNullOrEmpty($runtimePath))
-                        {
-                            #[MsalNativeResolver]::RegisterFor($assembly, $runtimePath)
-                            [System.Runtime.InteropServices.NativeLibrary]::Load($runtimePath)
-                        }
-                    }
-                }
-                break;
-            }
-            'Desktop'
-            {
-                try {
-                    $existingType = [Microsoft.Identity.Client.PublicClientApplication]
-                    #compiling http factory against version of preloaded package
-                    $referencedAssemblies+=$existingType.Assembly.Location
-                }
-                catch
-                {
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.Desktop.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.IdentityModel.Abstractions.dll')))
-                    Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll')))
-                    $referencedAssemblies+=[Path]::Combine([string[]]($PSScriptRoot,'Shared','net462','Microsoft.Identity.Client.dll'))
-                }
-                #on Windows, load WAM broker
-                if($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
-                {
-                    if($null -eq ('Kernel32' -as [type]))
-                    {
-                        Write-Verbose "Loading helper Kernel32"
-                        $helperDefinition = Get-Content "$PSScriptRoot\Helpers\Kernel32.cs" -Raw
-                        Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
-                    }
-                    if([RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                    {
-                        Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','net461','Microsoft.Identity.Client.NativeInterop.dll')))
-                        Add-Type -Path ([Path]::Combine([string[]]($PSScriptRoot,'Shared','netstandard2.0','Microsoft.Identity.Client.Broker.dll')))
-                        #need to add path to native runtime supporting the broker
-                        switch($env:PROCESSOR_ARCHITECTURE)
-                        {
-                            'AMD64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x64','native','msalruntime.dll')); break;}
-                            'ARM64' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-arm64','native','msalruntime_arm64.dll')); break;}
-                            'X86' {$runtimePath = [Path]::Combine([string[]]($PSScriptRoot,'Runtimes','win-x86','native','msalruntime_x86.dll')); break;}
-                        }
-                        if(-not [string]::IsNullOrEmpty($runtimePath))
-                        {
-                            #$env:Path = "$runtimePath;$($env:Path)"
-                            [Kernel32]::LoadLibrary($runtimePath) | Out-Null
-                        }
-                    }
-                }
-
-                #on desktop, this one is not pre-loaded
-                Add-Type -Assembly System.Net.Http
-        
-                #for desktop, we do not use separate app domain (will add if needed)
-                break;
-            }
+        # Some hosts require TLS 1.2; keep your existing behavior
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        } catch {
+            # On newer .NET this may be ignored; safe to swallow
         }
-        #shall we enforse specific version of TLS?
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        #cache for auth factories. Cache key is factory name
-        if($null -eq $script:AadAuthenticationFactories -or -not $script:AadAuthenticationFactories -is [hashtable])
-        {
+
+        # Initialize cache for factories
+        if ($null -eq $script:AadAuthenticationFactories -or -not ($script:AadAuthenticationFactories -is [hashtable])) {
             $script:AadAuthenticationFactories = @{}
         }
-        $helpers = 'GcMsalHttpClientFactory', 'DeviceCodeHandler','ParentWindowHelper'
-        foreach($helper in $helpers)
-        {
-            if($null -eq ($helper -as [type]))
-            {
-                Write-Verbose "Loading helper $helper"
-                $helperDefinition = Get-Content "$PSScriptRoot\Helpers\$helper.cs" -Raw
-                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies $referencedAssemblies -WarningAction SilentlyContinue -IgnoreWarnings
+
+        # --------------------------------------------------------
+        # Determine whether MSAL is already loaded
+        # --------------------------------------------------------
+        $msalAlreadyLoaded = $false
+        $msalAssemblyPath  = $null
+        $msalLoadedVersion = $null
+
+        try {
+            $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+
+            # --- Warnings ---
+            # 1) Always warn that MSAL is already loaded (but keep it informative)
+            Write-Verbose "MSAL already loaded in session: $msalAssemblyPath (v$msalLoadedVersion). AadAuthenticationFactory will reuse it."
+
+            # 2) Warn if versions differ (this is the dangerous case)
+            if ($moduleMsalVersion -and ($moduleMsalVersion -ne $msalLoadedVersion)) {
+                Write-Warning ("AadAuthenticationFactory ships MSAL v{0} at '{1}', but the session already loaded MSAL v{2} from '{3}'. " +
+                            "PowerShell loads assemblies into a shared context, so version conflicts are common. " +
+                            "If authentication fails, start a new session and import AadAuthenticationFactory first (before Az/Graph/EXO modules)." -f `
+                            $moduleMsalVersion, $moduleMsalPath, $msalLoadedVersion, $msalAssemblyPath)
+            }
+
+            # 3) If versions match but paths differ, warn at Verbose (or Warning if you prefer)
+            elseif ($moduleMsalVersion -and ($moduleMsalPath -and ($moduleMsalPath -ne $msalAssemblyPath))) {
+                Write-Verbose ("MSAL version matches (v{0}) but was loaded from a different path. " +
+                            "Module path: '{1}'. Loaded path: '{2}'." -f $msalLoadedVersion, $moduleMsalPath, $msalAssemblyPath)
+            }
+
+            $msalAlreadyLoaded = $true
+            $msalAssemblyPath  = $existingType.Assembly.Location
+            $msalLoadedVersion = $existingType.Assembly.GetName().Version
+            Write-Verbose "MSAL already loaded from: $msalAssemblyPath (v$msalLoadedVersion)"
+        } catch {
+            # Not loaded yet
+        }
+
+        # --------------------------------------------------------
+        # Select module-shipped MSAL directories
+        # --------------------------------------------------------
+        $sharedDir = $null
+        $sharedMsalPath = $null
+
+        if ($PSEdition -eq 'Core') {
+            # PS7.3+: prefer netstandard2.0
+            $sharedDir = Resolve-MsalSharedDirForCore -ModuleRoot $moduleRoot
+            $brokerDir = Join-Path $moduleRoot 'shared\netstandard2.0'
+
+            # Extra references commonly needed in PS Core for compiling helpers
+            $referencedAssemblies += 'System.Net.Primitives'
+            $referencedAssemblies += 'System.Net.WebProxy'
+            $referencedAssemblies += 'System.Console'
+            $referencedAssemblies += 'netstandard'
+        }
+        else {
+            # Windows PowerShell 5.1: use net462
+            $sharedDir = Join-Path $moduleRoot 'shared\net462'
+            $brokerDir = Join-Path $moduleRoot 'shared\net462'
+        }
+
+        $sharedMsalPath = Join-Path $sharedDir 'Microsoft.Identity.Client.dll'
+        $sharedMsalVersion = if (Test-Path $sharedMsalPath) { Get-AssemblyVersionFromPath -Path $sharedMsalPath } else { $null }
+
+        # Broker bits are typically netstandard2.0
+        $brokerDll = Join-Path $brokerDir 'Microsoft.Identity.Client.Broker.dll'
+        $brokerInteropDll = Join-Path $brokerDir 'Microsoft.Identity.Client.NativeInterop.dll'
+        $brokerVersion = if (Test-Path $brokerDll) { Get-AssemblyVersionFromPath -Path $brokerDll } else { $null }
+
+        # --------------------------------------------------------
+        # Load MSAL managed assemblies if not already loaded
+        # --------------------------------------------------------
+        if (-not $msalAlreadyLoaded) {
+            # Load dependencies first (best-effort)
+            $deps = @('System.Buffers.dll', 'System.Numerics.Vectors.dll', 'System.Runtime.CompilerServices.Unsafe.dll', 'System.Memory.dll', 'System.Diagnostics.DiagnosticSource.dll', 'Microsoft.IdentityModel.Abstractions.dll', 'System.Formats.Asn1.dll', 'System.ValueTuple.dll' )
+            foreach($dep in $deps) {
+                $depPath = Join-Path $sharedDir $dep
+                if (Test-Path $depPath) {
+                    Write-Verbose "Loading dependency: $depPath"
+                    Add-TypeSafePath -Path $depPath | Out-Null
+                }
+            }
+            if (-not (Test-Path $sharedMsalPath)) {
+                throw "MSAL not found at $sharedMsalPath. Populate Shared folder appropriately."
+            }
+
+            Add-Type -Path $sharedMsalPath -ErrorAction Stop | Out-Null
+
+            $msalAssemblyPath  = $sharedMsalPath
+            $msalLoadedVersion = ([Assembly]::LoadFrom($sharedMsalPath)).GetName().Version
+            Write-Verbose "Loaded MSAL from module: $msalAssemblyPath (v$msalLoadedVersion)"
+        }
+        else {
+            # MSAL was already loaded; use it for helper compilation reference
+            # Also, if your shipped broker version doesn't match MSAL, we may skip loading broker
+            if ($sharedMsalVersion -and $msalLoadedVersion -and ($sharedMsalVersion -ne $msalLoadedVersion)) {
+                Write-Verbose "Module-shipped MSAL version is $sharedMsalVersion but session already has $msalLoadedVersion. Will not attempt to load another MSAL copy."
             }
         }
 
+        # Ensure helper compilation references MSAL assembly currently in use
+        if ($msalAssemblyPath) {
+            $referencedAssemblies += $msalAssemblyPath
+        }
+
+        # Desktop: ensure System.Net.Http is available
+        if ($PSEdition -ne 'Core') {
+            Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue | Out-Null
+        }
+
+        # --------------------------------------------------------
+        # Load Broker (if not loaded) + native runtime (cross-platform)
+        # --------------------------------------------------------
+        $brokerTypePresent = ($null -ne ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
+        if (-not $brokerTypePresent) {
+
+            # If MSAL already loaded from elsewhere, ensure broker version matches MSAL version before loading
+            if ($msalLoadedVersion -and $brokerVersion -and ($msalLoadedVersion -ne $brokerVersion)) {
+                Write-Warning ("MSAL version in session is {0} but module broker is {1}. " +
+                               "Skipping broker load to avoid version conflicts. " +
+                               "Broker-based auth may be unavailable; browser/device-code fallback still works." -f $msalLoadedVersion, $brokerVersion)
+            }
+            else {
+                # Load managed broker interop if present
+                <# if (Test-Path $brokerInteropDll) {
+                    [Assembly]::LoadFrom($brokerInteropDll) | Out-Null
+                } #>
+
+                # Load broker extension assembly
+                if (-not (Test-Path $brokerDll)) {
+                    Write-Warning "Broker DLL not found at $brokerDll. Broker-based auth will be unavailable."
+                }
+                else {
+                    Add-Type -Path $brokerDll -ErrorAction Stop | Out-Null
+
+                    # Load native runtime for broker (Windows/Linux/macOS)
+                    Import-MsalNativeRuntime -ModuleRoot $moduleRoot
+                }
+            }
+        }
+
+        # --------------------------------------------------------
+        # Compile helper .cs files (your existing pattern)
+        # --------------------------------------------------------
+        $helpers = @('GcMsalHttpClientFactory', 'DeviceCodeHandler', 'ParentWindowHelper')
+
+        foreach ($helper in $helpers) {
+            if ($null -eq ($helper -as [type])) {
+                $helperPath = Join-Path $moduleRoot ("Helpers\{0}.cs" -f $helper)
+                if (-not (Test-Path $helperPath)) {
+                    Write-Verbose "Helper $helper not found at $helperPath - skipping."
+                    continue
+                }
+
+                Write-Verbose "Compiling helper $helper"
+                $helperDefinition = Get-Content $helperPath -Raw
+
+                Add-Type -TypeDefinition $helperDefinition `
+                    -ReferencedAssemblies $referencedAssemblies `
+                    -WarningAction SilentlyContinue -IgnoreWarnings | Out-Null
+            }
+        }
+
+        # --------------------------------------------------------
+        # Done
+        # --------------------------------------------------------
+        Write-Verbose "Init completed. MSAL v$msalLoadedVersion; Broker loaded: $(-not (-not ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])))"
     }
+}
+function Resolve-MsalSharedDirForCore {
+    param([Parameter(Mandatory)][string]$ModuleRoot)
+
+    # Prefer netstandard2.0 for PS7.3+ compatibility
+    $ns2 = Join-Path $ModuleRoot 'Shared\netstandard2.0'
+    $ns2Msal = Join-Path $ns2 'Microsoft.Identity.Client.dll'
+
+    if (Test-Path $ns2Msal) {
+        return $ns2
+    }
+
+    # Optional: if you run on .NET 8+ you may choose net8.0
+    $net8 = Join-Path $ModuleRoot 'Shared\net8.0'
+    $net8Msal = Join-Path $net8 'Microsoft.Identity.Client.dll'
+    if (Test-Path $net8Msal) {
+        Write-Warning "Shared\netstandard2.0\Microsoft.Identity.Client.dll not found. Falling back to Shared\net8.0. This may not work on PS7.3 if host runtime is not .NET 8."
+        return $net8
+    }
+
+    throw "No compatible MSAL found. Expected at least $ns2Msal (recommended) or $net8Msal."
 }
 #endregion Internal commands
 #region Module initialization

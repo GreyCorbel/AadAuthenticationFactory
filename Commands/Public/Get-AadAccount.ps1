@@ -2,34 +2,42 @@ function Get-AadAccount
 {
     <#
 .SYNOPSIS
-    Returns account(s) from AAD authentication factory cache
+    Returns cached Entra ID accounts from an authentication factory.
 
 .DESCRIPTION
-    For supported factory types, command returns either account(s) that match provided user account, or all accounts available in the cche.
-    For unsupported factories (those working with Managed Identities) does not return anything
+    Returns cached account objects for a public client authentication factory.
+    When UserName is specified, the command filters cached accounts by using
+    PowerShell's -match operator against the account user name.
+    Managed identity and other non-public client factories do not return accounts.
+
+.PARAMETER UserName
+    Optional user name pattern used to filter cached accounts.
+
+.PARAMETER Factory
+    Authentication factory instance, or the name of a previously created factory.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    One or more accounts found in factory cache
+    Microsoft.Identity.Client.IAccount
 
 .NOTES
-    Command uses -match operator to match value of UserName parameter with usernames of accounts in factory's cache
+    UserName filtering uses the PowerShell -match operator.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadToken
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://management.azure.com/.default') -AuthMode Interactive
+Get-AadToken | Test-AadToken -PayloadOnly
 Get-AadAccount
 
 Description
 -----------
-Returns all accounts from cache of most recently created factory.
+Returns all cached accounts for the most recently created public client factory.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
-Get-AadAccount -UserName John
+Get-AadAccount -Factory 'Default' -UserName 'john'
 
 Description
 -----------
-Returns all accounts from factory cache that match pattern 'John'.
+Returns cached accounts from the named factory whose user name matches 'john'.
 
 #>
     [CmdletBinding()]

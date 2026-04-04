@@ -2,41 +2,111 @@ function New-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Creates authentication factory with provided parameters for Public or Confidential client flows
+    Creates an authentication factory for Entra ID token acquisition.
 
 .DESCRIPTION
-    Creates authentication factory with provided parameters for Public or Confidential client flows
-    Authentication uses by default well-know clientId of Azure Powershell, but can accept clientId of app registered in your own tenant.
+    Creates a reusable authentication factory configured for public client,
+    confidential client, resource owner password, broker, or managed identity
+    authentication flows. If ClientId is omitted, the module uses its configured
+    default Azure PowerShell client ID.
+
+.PARAMETER DefaultScopes
+    Default scopes requested when Get-AadToken is called without -Scopes.
+
+.PARAMETER TenantId
+    Tenant identifier or verified domain name. You can also use values such as
+    organizations, common, or consumers where supported.
+
+.PARAMETER ClientId
+    Application client ID. If omitted, the module's default client ID is used.
+
+.PARAMETER RedirectUri
+    Redirect URI to use for public or confidential client authentication.
+
+.PARAMETER ClientSecret
+    Client secret used for confidential client authentication.
+
+.PARAMETER ResourceOwnerCredential
+    Credentials used for the resource owner password flow.
+
+.PARAMETER X509Certificate
+    Certificate used for confidential client authentication.
+
+.PARAMETER Assertion
+    Client assertion JWT used for federated confidential client authentication.
+
+.PARAMETER LoginApi
+    Base login endpoint. Defaults to the public Azure cloud endpoint.
+
+.PARAMETER B2CPolicy
+    Azure AD B2C policy name used to build the B2C authority.
+
+.PARAMETER AuthMode
+    Public client authentication mode: Interactive, DeviceCode, WIA, WAM, or Broker.
+
+.PARAMETER DefaultUserName
+    Optional login hint used by public client interactive authentication.
+
+.PARAMETER UseManagedIdentity
+    Creates a managed identity factory instead of an MSAL public or confidential client.
+
+.PARAMETER Multicloud
+    Enables multicloud token acquisition for supported public client scenarios.
+
+.PARAMETER EnableExperimentalFeatures
+    Enables MSAL experimental features on the created factory.
+
+.PARAMETER WithClaimsRequestSupport
+    Enables claims request support for public client flows.
+
+.PARAMETER Name
+    Optional case-insensitive name used to store the factory for later retrieval.
+
+.PARAMETER Proxy
+    Web proxy configuration used by the factory's HTTP client.
 
 .OUTPUTS
     AadAuthenticationFactory object
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com -RequiredScopes @('https://my-db.documents.azure.com/.default') -AuthMode Interactive
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://my-db.documents.azure.com/.default') -AuthMode Interactive
 
 Description
 -----------
-This command returns AAD authentication factory for Public client auth flow with well-known clientId for Azure PowerShell and interactive authentication for getting tokens for CosmosDB account
+Creates a public client factory that can acquire delegated tokens interactively.
 
 .EXAMPLE
 $proxy=new-object System.Net.WebProxy('http://myproxy.mycompany.com:8080')
 $proxy.BypassProxyOnLocal=$true
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode deviceCode -Proxy $proxy
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode DeviceCode -Proxy $proxy
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command works in on prem environment where access to internet is available via proxy. Command authenticates user with device code flow.
+Creates a device code factory that uses a custom outbound proxy.
 
 .EXAMPLE
 $creds = Get-Credential
-New-AadAuthenticationFactory -Name 'Vault' -TenantId 'mytenant.com' -ResourceOwnerCredential $creds -RequiredScopes 'https://vault.azure.net/.default'
+New-AadAuthenticationFactory -Name 'Vault' -TenantId 'contoso.onmicrosoft.com' -ResourceOwnerCredential $creds -DefaultScopes 'https://vault.azure.net/.default'
 $vaultToken = Get-AadToken -Factory (Get-AadAuthenticationFactory -Name 'Vault')
 
 Description
 -----------
-Command collects credentials of cloud-only account and authenticates with Resource Owner Password flow to get access token for Azure KeyVault.
-Get-AadToken command uses explicit factory specified by name to get token.
+Creates a named resource owner password factory and retrieves a token from it.
+
+.EXAMPLE
+New-AadAuthenticationFactory -ClientId '22222222-2222-2222-2222-222222222222' -ClientSecret $env:CLIENT_SECRET -TenantId 'contoso.onmicrosoft.com' -DefaultScopes @('https://graph.microsoft.com/.default')
+
+Description
+-----------
+Creates a confidential client factory that acquires application tokens by using a client secret.
+
+.EXAMPLE
+New-AadAuthenticationFactory -ClientId '33333333-3333-3333-3333-333333333333' -TenantId 'contoso.onmicrosoft.com' -AuthMode Broker -DefaultScopes @('https://management.azure.com/.default')
+
+Description
+-----------
+Creates a public client factory that uses the OS broker where available.
 #>
 
     param
@@ -116,7 +186,7 @@ Get-AadToken command uses explicit factory specified by name to get token.
         $B2CPolicy,
 
         [Parameter(Mandatory, ParameterSetName = 'PublicClient')]
-        [ValidateSet('Interactive', 'DeviceCode', 'WIA', 'WAM')]
+        [ValidateSet('Interactive', 'DeviceCode', 'WIA', 'WAM', 'Broker')]
         [string]
             #How to authenticate client - via web view, via device code flow, or via Windows Integrated Auth
             #Used in public client flows
@@ -286,24 +356,20 @@ Get-AadToken command uses explicit factory specified by name to get token.
                             $flowType = [AuthenticationFlow]::PublicClientWithDeviceCode
                             break
                         }
-                        'WAM' {
-                            #we do not support WAM on non-windows yet
-                            if([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows))
-                            {
-                                $flowType = [AuthenticationFlow]::PublicClientWithWam
-                                $opts = new-object Microsoft.Identity.Client.BrokerOptions(`
-                                    [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows `
-                                )
-                                $opts.Title = "AadAuthenticationFactory"
-                                $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$opts)
-                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
-                                $builder = $builder.WithRedirectUri("http://localhost")
-                            }
-                            else    
-                            {   
-                                throw New-Object System.PlatformNotSupportedException("WAM is currently only supported on Windows platform")
-                            }
+                        {$_ -in 'WAM','Broker'} {
                             
+                            $flowType = [AuthenticationFlow]::PublicClientWithWam
+                            $os =
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows -bor
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux   -bor
+                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::OSX
+
+                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($os)
+                            $brokerOptions.Title = "AadAuthenticationFactory"
+                            $brokerOptions.ListOperatingSystemAccounts = $true
+                            $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$brokerOptions)
+                            $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                            $builder = $builder.WithRedirectUri("http://localhost")
                             break
                         }
                         Default {

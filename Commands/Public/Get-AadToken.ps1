@@ -2,48 +2,90 @@ function Get-AadToken
 {
     <#
 .SYNOPSIS
-    Retrieves AAD token according to configuration of authentication factory
+    Acquires an Entra ID token from an authentication factory.
 
 .DESCRIPTION
-    Retrieves AAD token according to configuration of authentication factory
+    Requests a token by using the flow configured in an AadAuthenticationFactory
+    instance. Depending on the factory type, the command can acquire delegated,
+    application, on-behalf-of, broker, device code, or managed identity tokens.
+    The command can also return an Authorization header hashtable or request a
+    Proof-of-Possession token when supported.
+
+.PARAMETER Scopes
+    Scopes to request. If omitted, the factory's DefaultScopes value is used.
+
+.PARAMETER UserName
+    User name hint used during authentication or to select a cached account.
+
+.PARAMETER UserToken
+    Access token representing the calling user for on-behalf-of flows.
+    This is supported only with confidential client factories.
+
+.PARAMETER PopHttpMethod
+    HTTP method to bind to a Proof-of-Possession token request.
+    Used only when PopRequestUri is specified.
+
+.PARAMETER PoPRequestUri
+    Resource URI to bind to a Proof-of-Possession token request.
+
+.PARAMETER AsHashTable
+    Returns a hashtable containing an Authorization header instead of the raw
+    authentication result.
+
+.PARAMETER ForceRefresh
+    Forces token acquisition to bypass cached access tokens where supported.
+
+.PARAMETER WwwAuthenticateParameters
+    WWW-Authenticate parameters used for step-up authentication or CAE reauth.
+
+.PARAMETER Factory
+    Authentication factory instance, or the name of a previously created factory.
+    If not specified, the most recently created factory is used.
 
 .OUTPUTS
-    Authentication result from AAD with tokens and other information, or hashtable with Authorization header
+    Microsoft.Identity.Client.AuthenticationResult or System.Collections.Hashtable
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://management.azure.com/.default') -AuthMode Interactive
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command creates authentication factory and retrieves AAD token from it, authenticating user via web view or browser
+Creates a public client factory and acquires a delegated token interactively.
 
 .EXAMPLE
-$cosmosDbAccountName = 'myCosmosDBAcct
+$cosmosDbAccountName = 'myCosmosDbAccount'
 $factory = New-AadAuthenticationFactory -DefaultScopes @("https://$cosmosDbAccountName`.documents.azure.com/.default") -UseManagedIdentity
 $token = $factory | Get-AadToken
 
 Description
 -----------
-Command creates authentication factory and retrieves AAD token for access data plane of cosmos DB aaccount.
-For details on CosmosDB RBAC access, see https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac
+Creates a managed identity factory and acquires a token for Azure Cosmos DB.
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId mydomain.com -AuthMode WIA
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -AuthMode WIA
 $token = $factory | Get-AadToken -Scopes @('https://eventgrid.azure.net/.default')
 
 Description
 -----------
-Command creates authentication factory without default scopes and retrieves AAD token for access to event grid, specifying scopes when asking for token
+Requests a token by specifying scopes at call time instead of on the factory.
 
 .EXAMPLE
-New-AadAuthenticationFactory -TenantId mydomain.com  -RequiredScopes @('api://mycompany.com/myapi/.default') -AuthMode WIA
+New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://mycompany.com/myapi/.default') -AuthMode Interactive
 $headers = Get-AadToken -AsHashtable
-Invoke-RestMethod -Uri "https://myapi.mycomany.com/items" -Headers $headers 
+Invoke-RestMethod -Uri 'https://myapi.mycompany.com/items' -Headers $headers
 
 Description
 -----------
-Command shows how to get token as hashtable containing properly formatted Authorization header and use it to authenticate call method on REST API
+Returns an Authorization header hashtable that can be used with Invoke-RestMethod.
+
+.EXAMPLE
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://middle-tier/.default') -ClientSecret $env:API_SECRET -ClientId '11111111-1111-1111-1111-111111111111'
+$token = Get-AadToken -Factory $factory -Scopes @('https://graph.microsoft.com/.default') -UserToken $incomingAccessToken
+
+Description
+-----------
+Uses a confidential client factory to perform an on-behalf-of token request.
 
 #>
     [CmdletBinding()]
@@ -182,8 +224,8 @@ Command shows how to get token as hashtable containing properly formatted Author
                 ([AuthenticationFlow]::PublicClientWithWam) {
                     if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
                     {
-                        Write-Verbose "Getting token for OperatingSystemAccount"
-                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount
+                        <# Write-Verbose "Getting token for OperatingSystemAccount"
+                        $account = [Microsoft.Identity.Client.PublicClientApplication]::OperatingSystemAccount #>
                     }
                     try
                     {

@@ -2,17 +2,44 @@ function Get-AadAuthenticationFactory
 {
     <#
 .SYNOPSIS
-    Returns authentication factory specified by name or most recently created factory
+    Returns one or more authentication factories from the current session.
 
 .DESCRIPTION
-    Returns authentication factory specified by name.
-    If no name is specified, returns the last created factory.
-    If factory specified by name does not exist, returns null
-    If -All switch is specified, returns all factories created in current session
-    if no factory created yet, returns null
+    Returns the authentication factory specified by name.
+    If Name is not specified, the most recently created factory is returned.
+    When All is specified, all factories created in the current session are returned.
+    If a requested factory does not exist, the command returns $null.
+
+.PARAMETER Name
+    Name of the factory to retrieve. If omitted, the most recently created
+    factory is returned.
+
+.PARAMETER All
+    Returns every authentication factory created in the current session.
 
 .OUTPUTS
-    Authentication factory, or null
+    Authentication factory object, a collection of factories, or $null
+
+.EXAMPLE
+Get-AadAuthenticationFactory
+
+Description
+-----------
+Returns the most recently created authentication factory.
+
+.EXAMPLE
+Get-AadAuthenticationFactory -Name 'Vault'
+
+Description
+-----------
+Returns the factory created with the name 'Vault', or $null if it does not exist.
+
+.EXAMPLE
+Get-AadAuthenticationFactory -All
+
+Description
+-----------
+Returns all authentication factories created in the current PowerShell session.
 
 #>
     [CmdletBinding(DefaultParameterSetName = 'SpecificFactory')]

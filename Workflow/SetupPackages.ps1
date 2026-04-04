@@ -8,66 +8,37 @@ param
 
 $packagesDir = [Path]::Combine($RootPath,'packages')
 $modulePath = [Path]::Combine($RootPath,'Module','AadAuthenticationFactory')
-$sharedPath = [Path]::Combine($modulePath,'Shared')
-$runtimesPath = [Path]::Combine($modulePath,'Runtimes')
+$sharedPath = [Path]::Combine($modulePath,'shared')
 
 &"$nugetPath" restore ([Path]::Combine($RootPath,'Workflow','packages.config')) -packagesDirectory $packagesDir | Out-Null
 "Updating packages in the module"
 $packages = ([xml](get-content -path ([Path]::Combine($RootPath,'Workflow','packages.config')) -raw)).packages.package
 $packages
 if(-not (Test-Path -Path $sharedPath)) { New-Item -ItemType Directory -Path $sharedPath | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net461')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net461')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net462')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net462')) | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net9.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net9.0')) | Out-Null}
 if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netstandard2.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netstandard2.0')) | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net8.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net8.0')) | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netcoreapp3.1')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netcoreapp3.1')) | Out-Null}
-if(-not (Test-Path -Path $runtimesPath)) { New-Item -ItemType Directory -Path $runtimesPath | Out-Null}
-"==============================="
-$pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client"}
-"Processing: $($pkg.id)"
-$packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net8.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net8.0')) -Force
 
-#$pkg = $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"}
-foreach($pkg in $packages | where-object{$_.id -eq "Microsoft.IdentityModel.Abstractions"})
+foreach($pkg in $packages.Where{$_ -ne 'Microsoft.Identity.Client.NativeInterop'})
 {
     "Processing: $($pkg.id) - $($pkg.version)"
     $packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-    "   .NET Core"
-    Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net8.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net8.0')) -Force
-    "   .NET Framework"
-    Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force
+    if(Test-Path -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")))
+    {
+        "   .NET Framework"
+        Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force
+    }
+    if(Test-Path -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")))
+    {
+        "   .NET Core"
+        Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netstandard2.0')) -Force
+    }
 }
 
-$pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.NativeInterop"}
-foreach($pkg in $packages | where-object{$_.id -eq "Microsoft.Identity.Client.NativeInterop"})
+#runtimes
+foreach($pkg in $packages.Where{$_.id -eq 'Microsoft.Identity.Client.NativeInterop'})
 {
-    "Processing: $($pkg.id) - $($pkg.version)"
+    "Processing runtimes for: $($pkg.id) - $($pkg.version)"
     $packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-    "   .NET Framework"
-    Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net461',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net461')) -Force
-
-    #.NET Core can use any version
-    "   .NET Core"
-    Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netstandard2.0')) -Force
-    #runtimes for native interop taken from higher version
-    "   Runtimes"
-    Copy-Item -Path ([Path]::Combine($packageFolder,'runtimes','win-arm64')) -Destination $runtimesPath -Recurse -Force
-    Copy-Item -Path ([Path]::Combine($packageFolder,'runtimes','win-x64')) -Destination $runtimesPath -Recurse -Force
-    Copy-Item -Path ([Path]::Combine($packageFolder,'runtimes','win-x86')) -Destination $runtimesPath -Recurse -Force
+    Copy-Item -Path ([Path]::Combine($packageFolder,'runtimes')) -Destination $modulePath -Recurse -Force
 }
 
-$pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Broker"}
-"Processing: $($pkg.id)"
-$packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netstandard2.0')) -Force
-
-$pkg = $packages | where-object{$_.id -eq "Microsoft.Identity.Client.Desktop"}
-"Processing: $($pkg.id)"
-$packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-"   .NET Core"
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netcoreapp3.1',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netcoreapp3.1')) -Force
-"   .NET Framework"
-Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force

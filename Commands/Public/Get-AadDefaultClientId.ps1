@@ -2,13 +2,23 @@ function Get-AadDefaultClientId
 {
     <#
 .SYNOPSIS
-    Returns default AAD client ID used by module, which is client id for Azure Powershell
+    Returns the module's default Entra ID client ID.
 
 .DESCRIPTION
-    Returns default AAD client ID used by module, which is client id for Azure Powershell
+    Returns the default client ID used when New-AadAuthenticationFactory is
+    called without an explicit ClientId. The configured default is the Azure
+    PowerShell public client application ID.
 
 .OUTPUTS
-    Default client id used by module
+    System.String
+
+.EXAMPLE
+Get-AadDefaultClientId
+
+Description
+-----------
+Returns the client ID that the module uses by default for public client flows.
+
     #>
     [CmdletBinding()]
     param
