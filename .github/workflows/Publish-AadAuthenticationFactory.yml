@@ -8,6 +8,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+   inputs:
+      publish:
+        type: boolean
+        description: 'Publish to powershell gallery'     
+        required: false
+        default: false
 
 jobs:
   # This workflow contains a single job called "publishToGallery"
@@ -67,7 +73,7 @@ jobs:
     - name: Publish
       #Publish to PS Gallery
       shell: pwsh
-      if: ${{ github.event_name != 'workflow_dispatch' }}
+      if: ${{ (github.event_name != 'workflow_dispatch') || github.event.inputs.publish }}
       env:
         SECRET: ${{ secrets.GC_PSGALLERY_APIKEY }}
       run: |
