@@ -28,7 +28,7 @@ Function Update-Manifest
 
         while($KeyValue.parent) { $KeyValue = $KeyValue.parent }
         $ManifestContent = $KeyValue.Extent.Text.Remove($Extent.StartOffset, ($Extent.EndOffset - $Extent.StartOffset)).Insert($Extent.StartOffset,$AttributeValue)
-        Set-Content $manifestFile $ManifestContent
+        Set-Content $manifestFile $ManifestContent.Trim()
     }
 }
 
