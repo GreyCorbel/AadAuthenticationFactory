@@ -1630,15 +1630,15 @@ function Init {
         # Load MSAL managed assemblies if not already loaded
         # --------------------------------------------------------
         if (-not $msalAlreadyLoaded) {
-            # Load dependencies first (best-effort)
-            $deps = @('System.Buffers.dll', 'System.Numerics.Vectors.dll', 'System.Runtime.CompilerServices.Unsafe.dll', 'System.Memory.dll', 'System.Diagnostics.DiagnosticSource.dll', 'Microsoft.IdentityModel.Abstractions.dll', 'System.Formats.Asn1.dll', 'System.ValueTuple.dll' )
+            # We do not preload and just ship - MSAL will load as needed; some of deps are distributed as part of PS Core
+            <# $deps = @('System.Buffers.dll', 'System.Numerics.Vectors.dll', 'System.Runtime.CompilerServices.Unsafe.dll', 'System.Memory.dll', 'System.Diagnostics.DiagnosticSource.dll', 'Microsoft.IdentityModel.Abstractions.dll', 'System.Formats.Asn1.dll', 'System.ValueTuple.dll' )
             foreach($dep in $deps) {
                 $depPath = Join-Path $sharedDir $dep
                 if (Test-Path $depPath) {
                     Write-Verbose "Loading dependency: $depPath"
                     Add-TypeSafePath -Path $depPath | Out-Null
                 }
-            }
+            } #>
             if (-not (Test-Path $sharedMsalPath)) {
                 throw "MSAL not found at $sharedMsalPath. Populate Shared folder appropriately."
             }
