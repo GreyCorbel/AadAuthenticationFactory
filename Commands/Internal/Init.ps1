@@ -28,6 +28,10 @@ function Init {
 
         try {
             $existingType = [Microsoft.Identity.Client.PublicClientApplication]
+            $msalAlreadyLoaded = $true
+            $msalAssemblyPath  = $existingType.Assembly.Location
+            $msalLoadedVersion = $existingType.Assembly.GetName().Version
+            Write-Verbose "MSAL already loaded from: $msalAssemblyPath (v$msalLoadedVersion)"
 
             # --- Warnings ---
             # 1) Always warn that MSAL is already loaded (but keep it informative)
@@ -46,11 +50,6 @@ function Init {
                 Write-Verbose ("MSAL version matches (v{0}) but was loaded from a different path. " +
                             "Module path: '{1}'. Loaded path: '{2}'." -f $msalLoadedVersion, $moduleMsalPath, $msalAssemblyPath)
             }
-
-            $msalAlreadyLoaded = $true
-            $msalAssemblyPath  = $existingType.Assembly.Location
-            $msalLoadedVersion = $existingType.Assembly.GetName().Version
-            Write-Verbose "MSAL already loaded from: $msalAssemblyPath (v$msalLoadedVersion)"
         } catch {
             # Not loaded yet
         }
