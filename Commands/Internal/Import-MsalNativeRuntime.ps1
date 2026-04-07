@@ -7,7 +7,7 @@ function Import-MsalNativeRuntime {
     if ([string]::IsNullOrEmpty($rid)) { return }
 
     # IMPORTANT: your folder is lowercase "runtimes"
-    $nativeDir = Join-Path $ModuleRoot "runtimes\$rid\native"
+    $nativeDir = [Path]::Join($ModuleRoot, 'runtimes', $rid, 'native')
     if (-not (Test-Path $nativeDir)) { return }
 
     $candidate = Get-ChildItem -Path $nativeDir -File |
@@ -27,7 +27,8 @@ function Import-MsalNativeRuntime {
     else {
         # Windows PowerShell 5.1 is Windows-only; LoadLibrary is fine
         if ($null -eq ('Kernel32' -as [type])) {
-            $helperDefinition = Get-Content (Join-Path $ModuleRoot 'Helpers\Kernel32.cs') -Raw
+            $helperPath = [Path]::Join($ModuleRoot, 'Helpers', 'Kernel32.cs')
+            $helperDefinition = Get-Content $helperPath -Raw
             Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
         }
         [Kernel32]::LoadLibrary($candidate.FullName) | Out-Null

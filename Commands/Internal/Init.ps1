@@ -63,8 +63,8 @@ function Init {
         if ($PSEdition -eq 'Core') {
             # PS7.3+: prefer netstandard2.0
             $sharedDir = Resolve-MsalSharedDirForCore -ModuleRoot $moduleRoot
-            $brokerDir = Join-Path $moduleRoot 'shared\netstandard2.0'
-
+            
+            $brokerDir = [Path]::Join($moduleRoot, 'shared', 'netstandard2.0')
             # Extra references commonly needed in PS Core for compiling helpers
             $referencedAssemblies += 'System.Net.Primitives'
             $referencedAssemblies += 'System.Net.WebProxy'
@@ -73,16 +73,17 @@ function Init {
         }
         else {
             # Windows PowerShell 5.1: use net462
-            $sharedDir = Join-Path $moduleRoot 'shared\net462'
-            $brokerDir = Join-Path $moduleRoot 'shared\net462'
+            $sharedDir = [Path]::Join($moduleRoot, 'shared', 'net462')
+            $brokerDir = [Path]::Join($moduleRoot, 'shared', 'net462')
         }
 
-        $sharedMsalPath = Join-Path $sharedDir 'Microsoft.Identity.Client.dll'
+        $sharedMsalPath = [Path]::Join($sharedDir, 'Microsoft.Identity.Client.dll')
         $sharedMsalVersion = if (Test-Path $sharedMsalPath) { Get-AssemblyVersionFromPath -Path $sharedMsalPath } else { $null }
 
         # Broker bits are typically netstandard2.0
-        $brokerDll = Join-Path $brokerDir 'Microsoft.Identity.Client.Broker.dll'
-        $brokerInteropDll = Join-Path $brokerDir 'Microsoft.Identity.Client.NativeInterop.dll'
+        $brokerDll = [Path]::Join($brokerDir, 'Microsoft.Identity.Client.Broker.dll')
+        $brokerInteropDll = [Path]::Join($brokerDir, 'Microsoft.Identity.Client.NativeInterop.dll')
+    
         $brokerVersion = if (Test-Path $brokerDll) { Get-AssemblyVersionFromPath -Path $brokerDll } else { $null }
 
         # --------------------------------------------------------
@@ -92,7 +93,7 @@ function Init {
             # We do not preload and just ship - MSAL will load as needed; some of deps are distributed as part of PS Core
             <# $deps = @('System.Buffers.dll', 'System.Numerics.Vectors.dll', 'System.Runtime.CompilerServices.Unsafe.dll', 'System.Memory.dll', 'System.Diagnostics.DiagnosticSource.dll', 'Microsoft.IdentityModel.Abstractions.dll', 'System.Formats.Asn1.dll', 'System.ValueTuple.dll' )
             foreach($dep in $deps) {
-                $depPath = Join-Path $sharedDir $dep
+                $depPath = [Path]::Join($sharedDir, $dep)
                 if (Test-Path $depPath) {
                     Write-Verbose "Loading dependency: $depPath"
                     Add-TypeSafePath -Path $depPath | Out-Null
@@ -164,7 +165,8 @@ function Init {
 
         foreach ($helper in $helpers) {
             if ($null -eq ($helper -as [type])) {
-                $helperPath = Join-Path $moduleRoot ("Helpers\{0}.cs" -f $helper)
+                
+                $helperPath = [Path]::Join($moduleRoot, 'Helpers', "$helper.cs")
                 if (-not (Test-Path $helperPath)) {
                     Write-Verbose "Helper $helper not found at $helperPath - skipping."
                     continue
