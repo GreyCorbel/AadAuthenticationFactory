@@ -96,8 +96,8 @@ jobs:
       if: ${{ github.event_name != 'workflow_dispatch' }}
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
+        tag_name: ${{ github.ref_name }}
         draft: false
         token: ${{ secrets.GITHUB_TOKEN }}
         prerelease: false
-        name: Release ${{ github.ref }}   
+        name: Release ${{ github.ref_name }}   
