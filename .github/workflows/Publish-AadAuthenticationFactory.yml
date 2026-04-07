@@ -31,17 +31,17 @@ jobs:
       with:
         nuget-version: 'latest'
         
-    - name: Build Module
+    - name: Setup Packages
       shell: pwsh
       run: |
-        "Copying license file"
-        $moduleName = $env:MODULE_NAME
-        Copy-Item -Path "$env:GITHUB_WORKSPACE\LICENSE" -Destination "$env:GITHUB_WORKSPACE\Module\$moduleName\LICENSE.txt" -Force
-        "Building module"
-        &"$env:GITHUB_WORKSPACE\Workflow\BuildModule.ps1" -RootPath "$env:GITHUB_WORKSPACE" -ModuleName $moduleName
         "Setting up packages"
         &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE" -NugetPath $env:nuget
 
+    - name: Build Module
+      uses: GreyCorbel/PsModuleActions/build-module@v1
+      with:
+        module-name: ${{ env.MODULE_NAME }}
+    
     - name: Install AzureSignTool
       shell: pwsh
       run: |
