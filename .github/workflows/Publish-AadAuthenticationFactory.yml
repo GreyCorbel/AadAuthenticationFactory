@@ -14,6 +14,11 @@ on:
         description: 'Publish to powershell gallery'     
         required: false
         default: false
+      runTests:
+        type: boolean
+        description: 'Run Pester tests'
+        required: false
+        default: true
 
 jobs:
   # This workflow contains a single job called "publishToGallery"
@@ -41,6 +46,19 @@ jobs:
       uses: GreyCorbel/PsModuleActions/build-module@v1
       with:
         module-name: ${{ env.MODULE_NAME }}
+
+    - name: Run Pester tests
+      shell: pwsh
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.runTests }}
+      env:
+        AAD_TEST_TENANT_ID: ${{ vars.AAD_TEST_TENANT_ID }}
+        AAD_TEST_SCOPE: ${{ vars.AAD_TEST_SCOPE }}
+        AAD_TEST_CLIENT_ID: ${{ vars.AAD_TEST_CLIENT_ID }}
+        AAD_TEST_EXPECTED_AUD: ${{ vars.AAD_TEST_EXPECTED_AUD }}
+        AAD_TEST_CLIENT_SECRET: ${{ secrets.AAD_TEST_CLIENT_SECRET }}
+      run: |
+        "Running module tests"
+        &"$env:GITHUB_WORKSPACE\Workflow\RunTests.ps1" -RootPath "$env:GITHUB_WORKSPACE" -ModuleName $env:MODULE_NAME -CI
     
     - name: Install AzureSignTool
       shell: pwsh
