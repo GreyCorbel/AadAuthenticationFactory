@@ -33,7 +33,12 @@ public static class ParentWindowHelper
     {
         try
         {
-            // 1) Classic console host (conhost.exe)
+            //just return the currently focused window; this will work in most cases, including when launched from a console/terminal. It also allows support for non-console apps like VS Code.
+            IntPtr fg = Normalize(GetForegroundWindow());
+            if (fg != IntPtr.Zero)
+                return fg;
+
+            // try Classic console host (conhost.exe)
             IntPtr consoleHandle = GetConsoleWindow();
             if (consoleHandle != IntPtr.Zero)
             {
@@ -42,12 +47,6 @@ public static class ParentWindowHelper
                 if (normalized != IntPtr.Zero)
                     return normalized;
             }
-
-            // 2) VS Code / Windows Terminal / ConPTY: no real console HWND (GetConsoleWindow == 0)
-            // Best-effort: parent to currently focused top-level window.
-            IntPtr fg = Normalize(GetForegroundWindow());
-            if (fg != IntPtr.Zero)
-                return fg;
 
             // 3) No usable window handle
             return IntPtr.Zero;

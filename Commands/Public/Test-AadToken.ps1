@@ -10,7 +10,9 @@ function Test-AadToken
     raw JWT string, an AuthenticationResult returned by Get-AadToken, or a
     hashtable containing an Authorization header.
     Some tokens that contain nonce-related header data may not validate cleanly.
+    If authenticationResult passed, testing happens on AccessToken
     See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for details.
+    ssh-cert tokens cannot be validated by this command, as they are not signed JWTs.
 
 .PARAMETER Token
     Raw JWT string, AuthenticationResult, or Authorization header hashtable.
@@ -25,13 +27,13 @@ function Test-AadToken
     Token validation result object or the parsed token payload
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Broker
 $token = $factory | Get-AadToken
 $token.idToken | Test-AadToken | fl
 
 Description
 -----------
-Acquires a token, extracts the ID token, and validates it.
+Acquires a token via broker, extracts the ID token, and validates it.
 
 .EXAMPLE
 New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive

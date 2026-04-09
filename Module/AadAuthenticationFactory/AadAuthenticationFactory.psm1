@@ -231,12 +231,11 @@ function Get-AadToken
     Access token representing the calling user for on-behalf-of flows.
     This is supported only with confidential client factories.
 
-.PARAMETER PopHttpMethod
-    HTTP method to bind to a Proof-of-Possession token request.
-    Used only when PopRequestUri is specified.
-
-.PARAMETER PoPRequestUri
-    Resource URI to bind to a Proof-of-Possession token request.
+.PARAMETER SshKeyLength
+    When specified, a ssh-cert token is requested with a generated
+    SSH key of the given length in bits. Supported key lengths are 2048, 3072,
+    and 4096.
+    NOte: for getting ssh-cert token, scope requested must be 'https://pas.windows.net/CheckMyAccess/Linux/.default
 
 .PARAMETER AsHashTable
     Returns a hashtable containing an Authorization header instead of the raw
@@ -289,14 +288,6 @@ Description
 -----------
 Returns an Authorization header hashtable that can be used with Invoke-RestMethod.
 
-.EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://middle-tier/.default') -ClientSecret $env:API_SECRET -ClientId '11111111-1111-1111-1111-111111111111'
-$token = Get-AadToken -Factory $factory -Scopes @('https://graph.microsoft.com/.default') -UserToken $incomingAccessToken
-
-Description
------------
-Uses a confidential client factory to perform an on-behalf-of token request.
-
 #>
     [CmdletBinding()]
     param
@@ -313,15 +304,8 @@ Uses a confidential client factory to perform an on-behalf-of token request.
             #Access token for user
             #Used to identify user in on-behalf-of flows
         [string]$UserToken,
-            #Request PoP token instead of Bearer token
-            #PoP http method for resource to bind PoP token to
-            #default is GET
-            #Ignored for authentication flows other than 'PublicClientWithWam
-        [System.Net.Http.HttpMethod]$PopHttpMethod = [System.Net.Http.HttpMethod]::Get,
-            #Request PoP token instead of Bearer token
-            #PUri to bind PoP token to
-            #Ignored for authentication flows other than 'PublicClientWithWam
-        [string]$PoPRequestUri,
+        [Parameter()]
+        [int]$SshKeyLength = -1,
             #When specified, hashtable with Authorization header is returned instead of token
             #This is shortcut to use when just need to have token for authorization header to call REST API (e.g. via Invoke-RestMethod)
             #When not specified, returns authentication result with tokens and other metadata
@@ -379,6 +363,7 @@ Uses a confidential client factory to perform an on-behalf-of token request.
             $assertion = new-object Microsoft.Identity.Client.UserAssertion($UserToken)
             Write-Verbose "Getting token with assertion $($assertion.AssertionType) $($assertion.Assertion)"
             $task = $Factory.AcquireTokenOnBehalfOf($Scopes, $assertion).ExecuteAsync($cts.Token)
+            $rslt = $task | AwaitTask -CancellationTokenSource $cts
         }
         else
         {
@@ -394,15 +379,23 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                 ([AuthenticationFlow]::PublicClient) {
                     try
                     {
-                        Write-Verbose "Getting token for $($account.Username)"
-                        $builder = $factory.AcquireTokenSilent($scopes,$account)
-                        $builder = $builder.WithForceRefresh($forceRefresh)
-                        if($null -ne $WwwAuthenticateParameters)
+                        if($null -ne $account)
                         {
-                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
-                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
-                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+                            Write-Verbose "Getting token for $($account.Username)"
                         }
+                        else
+                        {
+                            Write-Verbose "Getting token without account hint"
+                        }
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)
+                        if($SshKeyLength -gt 0)
+                        {
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
+                        $builder = $builder `
+                        | WithForceRefresh -ForceRefresh $forceRefresh `
+                        | WithWwwAuthenticateParameters -WwwAuthenticateParameters $WwwAuthenticateParameters
 
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
@@ -410,7 +403,12 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         Write-Verbose "Getting token interactively"
-                        $task = $factory.AcquireTokenInteractive($Scopes).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenInteractive($Scopes)
+                        if($null -ne $jwk)
+                        {
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -419,7 +417,7 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                     if($null -ne $Account)
                     {
                         Write-Verbose "Getting token for $($account.Username)"
-                        $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync()
+                        $task = $factory.AcquireTokenSilent($Scopes, $account).WithForceRefresh($forceRefresh).ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     else
@@ -440,27 +438,14 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                     try
                     {
                         Write-Verbose "Getting token silently"
-                        $builder = $factory.AcquireTokenSilent($scopes,$account)
-                        $builder = $builder.WithForceRefresh($forceRefresh)
-                        if(-not [string]::IsNullOrEmpty($PoPRequestUri))
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)`
+                        | WithWwwAuthenticateParameters -WwwAuthenticateParameters $WwwAuthenticateParameters `
+                        | WithForceRefresh -ForceRefresh $forceRefresh
+
+                        if($SshKeyLength -gt 0)
                         {
-                            if(-not $factory.IsProofOfPossessionSupportedByClient)
-                            {
-                                throw (new-object System.ArgumentException("PoP authentication scheme is not supported by client"))
-                            }
-                            Write-Verbose "Requesting PoP nonce from resource server for Uri: $PoPRequestUri and http method $PopHttpMethod"
-                            $PopNonce = Get-PoPNonce -Uri $PoPRequestUri -Method $PopHttpMethod -Factory $Factory
-                            if($null -eq $PopNonce)
-                            {
-                                throw (new-object System.ArgumentException("PoP authentication scheme is not supported by resource server"))
-                            }
-                            $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
-                        }
-                        if($null -ne $WwwAuthenticateParameters)
-                        {
-                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
-                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
-                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $builder = $builder | WithJwk -Jwk $jwk
                         }
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
@@ -470,18 +455,17 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                         $builder = $factory.AcquireTokenInteractive($Scopes)
                         if(-not [string]::IsNullOrEmpty($UserName))
                         {
-                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and login hint: $userName"
+                            Write-Verbose "Falling back to UI auth with login hint: $userName"
                             $builder = $builder.WithLoginHint($userName)
                         }
                         else
                         {
-                            Write-Verbose "Falling back to UI auth with parent window hadle: $windowHandle and account: $($account.userName)"
+                            Write-Verbose "Falling back to UI auth with account: $($account.userName)"
                             $builder = $builder.WithAccount($account)
                         }
-                        if(-not [string]::IsNullOrEmpty($popNonce))
+                        if($null -ne $jwk)
                         {
-                            Write-Verbose "Requesting PoP token interactively"
-                            $builder = $builder.WithProofOfPossession($PopNonce, $PopHttpMethod, $PoPRequestUri)
+                            $builder = $builder | WithJwk -Jwk $jwk
                         }
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
@@ -492,22 +476,27 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                     try
                     {
                         Write-Verbose "Getting token for $($account.Username)"
-                        $builder = $factory.AcquireTokenSilent($scopes,$account)
-                        $builder = $builder.WithForceRefresh($forceRefresh)
-                        if($null -ne $WwwAuthenticateParameters)
-                        {
-                            Write-Verbose "Using WWW-Authenticate parameters for re-authentication"
-                            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
-                            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
-                        }
+                        $builder = $factory.AcquireTokenSilent($scopes,$account)`
+                        | WithWwwAuthenticateParameters -WwwAuthenticateParameters $WwwAuthenticateParameters `
+                        | WithForceRefresh -ForceRefresh $forceRefresh
 
+                        if($SshKeyLength -gt 0)
+                        {
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
                         $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         Write-Verbose "Getting token with device code"
-                        $task = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get()).ExecuteAsync($cts.Token)
+                        $builder = $factory.AcquireTokenWithDeviceCode($Scopes,[DeviceCodeHandler]::Get())
+                        if($null -ne $jwk)
+                        {
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -519,20 +508,31 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                         if($forceRefresh)
                         {
                             Write-Verbose "Refreshing token with explicit credentials"
-                            $task = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password).ExecuteAsync()
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                            $builder = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password)
                         }
                         else
                         {
                             Write-Verbose "Getting token silently"
-                            $task = $factory.AcquireTokenSilent($scopes,$account).ExecuteAsync($cts.Token)
-                            $rslt = $task | AwaitTask -CancellationTokenSource $cts
+                            $builder = $factory.AcquireTokenSilent($scopes,$account)
                         }
+                        if($SshKeyLength -gt 0)
+                        {
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
+                        $task = $builder.ExecuteAsync($cts.Token)
+                        $rslt = $task | AwaitTask -CancellationTokenSource $cts
+
                     }
                     catch [Microsoft.Identity.Client.MsalUiRequiredException]
                     {
                         Write-Verbose "Getting token with credentials"
-                        $task = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password).ExecuteAsync()
+                        $builder = $factory.AcquireTokenByUsernamePassword($Scopes, $creds.UserName, $creds.GetNetworkCredential().Password)
+                        if($null -ne $jwk)
+                        {
+                            $builder = $builder | WithJwk -Jwk $jwk
+                        }
+                        $task = $builder.ExecuteAsync($cts.Token)
                         $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     }
                     break;
@@ -542,19 +542,6 @@ Uses a confidential client factory to perform an on-behalf-of token request.
                     Write-Verbose "Getting token for confidentioal client"
                     $builder = $factory.AcquireTokenForClient($scopes)
                     $builder = $builder.WithForceRefresh($forceRefresh)
-                    if(-not [string]::IsNullOrEmpty($PoPRequestUri))
-                    {
-                        Write-Verbose "Requesting PoP nonce from resource server for Uri: $PoPRequestUri and http method $PopHttpMethod"
-                        $PopNonce = Get-PoPNonce -Uri $PoPRequestUri -Method $PopHttpMethod -Factory $Factory
-                        if($null -eq $PopNonce)
-                        {
-                            throw (new-object System.ArgumentException("PoP authentication scheme is not supported by resource server"))
-                        }
-                        $popConfig = new-object Microsoft.Identity.Client.AppConfig.PoPAuthenticationConfiguration((new-object Uri($PoPRequestUri)))
-                        $popConfig.HttpMethod = $PopHttpMethod
-                        $popConfig.Nonce = $PopNonce
-                        $builder = $builder.WithProofOfPossession($popConfig)
-                    }
                     $task = $builder.ExecuteAsync($cts.Token)
                     $rslt = $task | AwaitTask -CancellationTokenSource $cts
                     break
@@ -594,92 +581,6 @@ Uses a confidential client factory to perform an on-behalf-of token request.
         if($null -ne $cts)
         {
             Write-Verbose "Disposing resources"
-            $cts.Dispose()
-        }
-    }
-}
-function Get-PoPNonce
-{
-<#
-.SYNOPSIS
-    Retrieves a Proof-of-Possession nonce from a resource.
-
-.DESCRIPTION
-    Sends an unauthenticated request to a resource and inspects the
-    WWW-Authenticate response headers for a PoP challenge. If the resource
-    advertises PoP and provides a nonce, that nonce is returned; otherwise the
-    command returns $null.
-
-.PARAMETER Uri
-    Resource URI to probe for a PoP challenge.
-
-.PARAMETER Method
-    HTTP method to use when probing the resource.
-
-.PARAMETER Factory
-    Authentication factory whose HTTP client should be used to send the request.
-    If not specified, the most recently created factory is used.
-
-.OUTPUTS
-    System.String or $null
-
-.EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('api://myapi/.default') -AuthMode Broker
-Get-PoPNonce -Uri 'https://myapi.contoso.com/items' -Method ([System.Net.Http.HttpMethod]::Get) -Factory $factory
-
-Description
------------
-Checks whether the target API challenges clients for a PoP token and returns the nonce if one is provided.
-
-#>
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(Mandatory=$true)]
-            #URI of the resource to get PoP nonce for            
-        [string]$Uri,
-        [Parameter(Mandatory=$true)]
-            #HTTP method to use for request
-        [System.Net.Http.HttpMethod]$Method,
-        [Parameter(ValueFromPipeline)]
-            #AAD authentication factory created via New-AadAuthenticationFactory
-        $Factory = $script:AadLastCreatedFactory
-    )
-    begin
-    {
-        [System.Threading.CancellationTokenSource]$cts = new-object System.Threading.CancellationTokenSource([timespan]::FromSeconds(10))
-    }
-
-    process
-    {
-        try {
-            $message = New-Object System.Net.Http.HttpRequestMessage
-            $message.Method = $Method
-            $message.RequestUri = [System.Uri]::new($Uri)
-            $client = $factory.HttpClientFactory.GetHttpClient()
-            $response = $client.SendAsync($message) | AwaitTask -CancellationTokenSource $cts
-            if($response.StatusCode -eq [System.Net.HttpStatusCode]::Unauthorized -and $null -ne $response.Headers.WwwAuthenticate)
-            {
-                $popHeader = $response.Headers.WwwAuthenticate | Where-Object {$_.scheme -eq 'PoP'}
-                if($null -ne $popHeader)
-                {
-                    $r = [Microsoft.Identity.Client.WwwAuthenticateParameters]::CreateFromAuthenticationHeaders($response.Headers, 'PoP')  
-                    $r.Nonce
-                }
-            }
-        }
-        finally
-        {
-            if($null -ne $message)
-            {
-                $message.Dispose()
-            }
-        }
-    }
-    end
-    {
-        if($null -ne $cts)
-        {
             $cts.Dispose()
         }
     }
@@ -1120,7 +1021,9 @@ function Test-AadToken
     raw JWT string, an AuthenticationResult returned by Get-AadToken, or a
     hashtable containing an Authorization header.
     Some tokens that contain nonce-related header data may not validate cleanly.
+    If authenticationResult passed, testing happens on AccessToken
     See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for details.
+    ssh-cert tokens cannot be validated by this command, as they are not signed JWTs.
 
 .PARAMETER Token
     Raw JWT string, AuthenticationResult, or Authorization header hashtable.
@@ -1135,13 +1038,13 @@ function Test-AadToken
     Token validation result object or the parsed token payload
 
 .EXAMPLE
-$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Interactive
+$factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Broker
 $token = $factory | Get-AadToken
 $token.idToken | Test-AadToken | fl
 
 Description
 -----------
-Acquires a token, extracts the ID token, and validates it.
+Acquires a token via broker, extracts the ID token, and validates it.
 
 .EXAMPLE
 New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
@@ -1464,6 +1367,97 @@ function Base64UrlDecode
         $result
     }
 }
+function Base64UrlEncode
+{
+    param
+    (
+        [Parameter(Mandatory,ValueFromPipeline)]
+        [byte[]]$Data
+    )
+
+    process
+    {
+        $result = [System.Convert]::ToBase64String($Data)
+        $result = $result.Replace('+','-').Replace('/','_').TrimEnd('=')
+
+        $result
+    }
+}
+function WithSshCertificate
+{
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]   $builder,
+        [Parameter(Mandatory)]                      [int]$SshKeyLength
+    )
+
+    process
+    {
+        if($SshKeyLength -gt 0)
+        {
+            $keyId = 'key01'
+            $jwkData = NewJwk -KeyLength $SshKeyLength | ConvertTo-Json -Depth 10
+            Write-Verbose "Requesting SSH certificate with JWK: $jwkData and keyId: $keyId"
+            $builder = [Microsoft.Identity.Client.SSHCertificates.SSHExtensions]::WithSSHCertificateAuthenticationScheme($builder,$jwkData, $keyId)
+        }
+        return $builder
+    }
+}
+
+function WithJwk
+{
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]   $builder,
+        [Parameter(Mandatory=$true)]                [hashtable]$Jwk
+    )
+
+    process
+    {
+        $jwkData = [PSCustomObject]$jwk | Select-object -ExcludeProperty kid | ConvertTo-Json -Depth 10
+        Write-Verbose "Requesting SSH certificate with JWK: $jwkData and keyId: $($jwk.kid)"
+        $builder = [Microsoft.Identity.Client.SSHCertificates.SSHExtensions]::WithSSHCertificateAuthenticationScheme($builder,$jwkData, $jwk.kid)
+        return $builder
+    }  
+}
+
+function WithWwwAuthenticateParameters
+{
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]   $builder,
+        [Parameter()]                               [hashtable]$WwwAuthenticateParameters
+    )
+
+    process
+    {
+        if($null -ne $WwwAuthenticateParameters -and $WwwAuthenticateParameters.ContainsKey('Authority') -and $WwwAuthenticateParameters.ContainsKey('Claims'))
+        {
+            $builder = $builder.WithAuthority($WwwAuthenticateParameters.Authority)
+            $builder = $builder.WithClaims($WwwAuthenticateParameters.Claims)
+        }
+        return $builder
+    }
+}
+
+function WithForceRefresh
+{
+    param
+    (
+        [Parameter(Mandatory, ValueFromPipeline)]   $builder,
+        [Parameter()]                               [bool]$ForceRefresh
+    )
+
+    process
+    {
+        if($ForceRefresh)
+        {
+            Write-Verbose "Forcing refresh of token"
+        }
+        $builder = $builder.WithForceRefresh($ForceRefresh)
+        return $builder
+    }
+}
 function Get-AssemblyVersionFromPath {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -1700,6 +1694,31 @@ function Init {
         }
 
         Write-Information "Init completed. MSAL v$msalLoadedVersion; Broker loaded: $(-not (-not ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])))"
+    }
+}
+function NewJwk
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter()]
+        [int]$KeyLength = 2048,
+        [Parameter()]
+        [string]$kid = 'key1'
+    )
+
+    process
+    {
+        $rsa = [System.Security.Cryptography.RSA]::Create($KeyLength)
+        $parameters = $rsa.ExportParameters($false)
+
+        $jwk = @{
+            kty = 'RSA'
+            n   = Base64UrlEncode -Data $parameters.Modulus
+            e   = Base64UrlEncode -Data $parameters.Exponent
+            kid = $kid
+        }
+        $jwk
     }
 }
 function Resolve-MsalSharedDirForCore {
