@@ -68,6 +68,8 @@
                 </TableColumnHeader>
                 <TableColumnHeader>
                 </TableColumnHeader>
+                <TableColumnHeader>
+                </TableColumnHeader>
                 </TableHeaders>
                 <TableRowEntries>
                 <TableRowEntry>
@@ -87,6 +89,9 @@
                         </TableColumnItem>
                         <TableColumnItem>
                             <PropertyName>FlowType</PropertyName>
+                        </TableColumnItem>
+                        <TableColumnItem>
+                            <PropertyName>DefaultUserName</PropertyName>
                         </TableColumnItem>
                     </TableColumnItems>
                 </TableRowEntry>
