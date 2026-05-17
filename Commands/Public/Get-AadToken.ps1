@@ -119,15 +119,14 @@ Returns an Authorization header hashtable that can be used with Invoke-RestMetho
     }
     process
     {
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
         if($null -eq $Factory)
         {
             Write-Error "Please pass valid instance of AAD Authentication Factory"
             return
-        }
-
-        if($factory -is [string])
-        {
-            $factory = Get-AadAuthenticationFactory -Name $factory
         }
         
         if($null -eq $Scopes)
