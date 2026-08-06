@@ -329,15 +329,14 @@ Returns an Authorization header hashtable that can be used with Invoke-RestMetho
     }
     process
     {
+        if($factory -is [string])
+        {
+            $factory = Get-AadAuthenticationFactory -Name $factory
+        }
         if($null -eq $Factory)
         {
             Write-Error "Please pass valid instance of AAD Authentication Factory"
             return
-        }
-
-        if($factory -is [string])
-        {
-            $factory = Get-AadAuthenticationFactory -Name $factory
         }
         
         if($null -eq $Scopes)
@@ -1101,24 +1100,32 @@ Validates a bearer token when it is supplied as an Authorization header hashtabl
                 }
             }
         }
-        else
+        elseif($token -is [System.Collections.Hashtable])
         {
-            if($token -is [System.Collections.Hashtable])
+            if($null -ne $token['Authorization'])
             {
-                if($null -ne $token['Authorization'])
-                {
-                    Write-Verbose 'Using AccessToken from provided hashtable'
-                    $token = $token['Authorization'].Replace('Bearer ','')
-                }
-                else
-                {
-                    Write-Error 'Provided hashtable does not contain Authorization key'
-                }
+                Write-Verbose 'Using AccessToken from provided hashtable'
+                $token = $token['Authorization'].Replace('Bearer ','')
             }
             else
             {
-                Write-Verbose 'Using provided plaintext token'
+                Write-Error 'Provided hashtable does not contain Authorization key'
             }
+        }
+        elseif($null -ne $token.accessToken)
+        {
+            Write-Verbose 'Using AccessToken from provided object'
+            $token = $token.accessToken
+        }
+        elseif($null -ne $token.idToken)
+        {
+            Write-Verbose 'Using IdToken from provided object'
+            $token = $token.idToken
+        }
+        else
+        {
+            Write-Verbose 'Using provided token as is, assuming it is a raw JWT string'
+            $token = $token.ToString()
         }
         $parts = $token.split('.')
         if($parts.Length -ne 3)
