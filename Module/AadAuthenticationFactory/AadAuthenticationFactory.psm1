@@ -331,11 +331,19 @@ Returns an Authorization header hashtable that can be used with Invoke-RestMetho
     {
         if($factory -is [string])
         {
-            $factory = Get-AadAuthenticationFactory -Name $factory
+            if(-not [string]::IsNullOrEmpty($factory))
+            {
+                Write-Verbose "Getting factory by name: $factory"
+                $factory = Get-AadAuthenticationFactory -Name $factory
+            }
+            else
+            {
+                $Factory = $script:AadLastCreatedFactory
+            }
         }
         if($null -eq $Factory)
         {
-            Write-Error "Please pass valid instance of AAD Authentication Factory"
+            Write-Error "Please pass valid name or instance of AAD Authentication Factory"
             return
         }
         
@@ -1016,25 +1024,38 @@ function Test-AadToken
 
 .DESCRIPTION
     Parses a JWT access token or ID token and validates its signature against the
-    issuer's OpenID configuration and signing keys. The Token parameter accepts a
-    raw JWT string, an AuthenticationResult returned by Get-AadToken, or a
-    hashtable containing an Authorization header.
-    Some tokens that contain nonce-related header data may not validate cleanly.
-    If authenticationResult passed, testing happens on AccessToken
-    See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609 for details.
-    ssh-cert tokens cannot be validated by this command, as they are not signed JWTs.
+    issuer's OpenID configuration and signing keys. Supports both standard Entra ID
+    and Azure AD B2C tokens, and RS256, RS384, and RS512 signing algorithms.
+
+    When an AuthenticationResult is passed, AccessToken is examined; if AccessToken
+    is absent, IdToken is used instead.
+
+    Tokens whose header contains a nonce claim may not validate correctly via
+    signature verification alone; IsValid may be false even for a legitimately issued
+    token. See https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609
+    for details.
+
+    ssh-cert tokens are not supported because they are not signed JWTs.
 
 .PARAMETER Token
-    Raw JWT string, AuthenticationResult, or Authorization header hashtable.
+    Token to parse and validate. Accepted forms:
+      - Raw JWT string
+      - Microsoft.Identity.Client.AuthenticationResult returned by Get-AadToken
+      - Hashtable with an Authorization key containing a Bearer token (as returned by Get-AadToken -AsHashtable)
+      - Any object exposing an accessToken or idToken property
 
 .PARAMETER OidcConfigUri
-    OpenID configuration endpoint to use instead of deriving it from the token.
+    OpenID configuration endpoint URI. When omitted the endpoint is derived from
+    the token's issuer claim. Specify this to override the default, for example
+    when validating tokens from a B2C custom policy or a non-standard issuer.
 
 .PARAMETER PayloadOnly
     Returns only the parsed payload claims instead of the full validation result.
 
 .OUTPUTS
-    Token validation result object or the parsed token payload
+    GreyCorbel.Identity.Authentication.TokenValidationResult containing Header,
+    Payload, and IsValid properties; or the Payload PSCustomObject when -PayloadOnly
+    is specified.
 
 .EXAMPLE
 $factory = New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://eventgrid.azure.net/.default') -AuthMode Broker
@@ -1043,7 +1064,7 @@ $token.idToken | Test-AadToken | fl
 
 Description
 -----------
-Acquires a token via broker, extracts the ID token, and validates it.
+Acquires a token via broker, extracts the ID token string, and validates it.
 
 .EXAMPLE
 New-AadAuthenticationFactory -TenantId contoso.onmicrosoft.com -DefaultScopes @('https://graph.microsoft.com/.default') -AuthMode Interactive
@@ -1051,7 +1072,7 @@ Get-AadToken | Test-AadToken -PayloadOnly
 
 Description
 -----------
-Acquires an access token, validates it, and returns only the parsed claims.
+Acquires an access token and returns only its parsed payload claims.
 
 .EXAMPLE
 $headers = Get-AadToken -AsHashtable
@@ -1059,7 +1080,7 @@ Test-AadToken -Token $headers
 
 Description
 -----------
-Validates a bearer token when it is supplied as an Authorization header hashtable.
+Validates a bearer token supplied as an Authorization header hashtable.
 #>
 [CmdletBinding()]
     param (
