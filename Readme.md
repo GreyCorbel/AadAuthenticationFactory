@@ -10,6 +10,8 @@ This module provides unified experience for getting and using tokens from Entra 
 
 Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows (PS Desktop and Core), MacOS and Linux.
 
+**Obsolete flow:** The Resource Owner Password flow is obsolete and support for it will be removed in the next release because Microsoft's initiative to enforce multifactor authentication is incompatible with password-only sign-in. Use an interactive, device code, broker, confidential client, or managed identity flow instead.
+
 _Note_: Some authentication methods are not available in all scenarios (e.g. WAM and Windows integrated authentication only work on Windows)
 
 Module comes with commands:

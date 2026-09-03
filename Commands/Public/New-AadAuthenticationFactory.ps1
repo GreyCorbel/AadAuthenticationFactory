@@ -10,6 +10,11 @@ function New-AadAuthenticationFactory
     authentication flows. If ClientId is omitted, the module uses its configured
     default Azure PowerShell client ID.
 
+.NOTES
+    The Resource Owner Password flow is obsolete. Support for this flow will be
+    removed in the next release because Microsoft's initiative to enforce
+    multifactor authentication is incompatible with password-only sign-in.
+
 .PARAMETER DefaultScopes
     Default scopes requested when Get-AadToken is called without -Scopes.
 
@@ -121,7 +126,7 @@ Creates a public client factory that uses the OS broker where available.
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(Mandatory,ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(Mandatory,ParameterSetName = 'PublicClient')]
-        [Parameter(Mandatory,ParameterSetName = 'ResourceOwnerPasssword')]
+        [Parameter(Mandatory,ParameterSetName = 'ResourceOwnerPassword')]
         [string]
             #Id of tenant where to autenticate the user. Can be tenant id, or any registerd DNS domain
             #You can also use one of AAD placeholders: organizations, common, consumers
@@ -145,7 +150,7 @@ Creates a public client factory that uses the OS broker where available.
             #Used to get access as application rather than as calling user
         $ClientSecret,
 
-        [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
+        [Parameter(ParameterSetName = 'ResourceOwnerPassword')]
         [pscredential]
             #Resource Owner username and password for public client ROPC flow
             #Used to get access as user specified by credential
@@ -168,7 +173,7 @@ Creates a public client factory that uses the OS broker where available.
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
-        [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
+        [Parameter(ParameterSetName = 'ResourceOwnerPassword')]
         [string]
             #AAD auth endpoint
             #Default: endpoint for public cloud
@@ -178,7 +183,7 @@ Creates a public client factory that uses the OS broker where available.
         [Parameter(ParameterSetName = 'ConfidentialClientWithSecret')]
         [Parameter(ParameterSetName = 'ConfidentialClientWithCertificate')]
         [Parameter(ParameterSetName = 'PublicClient')]
-        [Parameter(ParameterSetName = 'ResourceOwnerPasssword')]
+        [Parameter(ParameterSetName = 'ResourceOwnerPassword')]
         [string]
             #Name of the B2C policy to use for login
             #Specifying this parameter means that you want to use B2B login and expects you to provide B2C tenant name in tenant ID
@@ -298,7 +303,7 @@ Creates a public client factory that uses the OS broker where available.
 
                 break;
             }
-            {$_ -in 'PublicClient','ResourceOwnerPasssword'} {
+            {$_ -in 'PublicClient','ResourceOwnerPassword'} {
                 $opts = new-object Microsoft.Identity.Client.PublicClientApplicationOptions
                 $opts.ClientId = $clientId
                 $opts.clientName = $moduleName
@@ -333,8 +338,9 @@ Creates a public client factory that uses the OS broker where available.
                     $capabilities.Add("cp1") | Out-Null
                     $builder = $builder.WithClientCapabilities($capabilities)
                 }
-                if($_ -eq 'ResourceOwnerPasssword')
+                if($_ -eq 'ResourceOwnerPassword')
                 {
+                    Write-Warning "The Resource Owner Password flow is obsolete and will be removed in the next release because Microsoft's initiative to enforce multifactor authentication is incompatible with password-only sign-in."
                     $flowType = [AuthenticationFlow]::ResourceOwnerPassword
                 }
                 else
