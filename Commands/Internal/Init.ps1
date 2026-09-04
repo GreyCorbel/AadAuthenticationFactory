@@ -18,6 +18,8 @@ function Init {
         if ($null -eq $script:AadAuthenticationFactories -or -not ($script:AadAuthenticationFactories -is [hashtable])) {
             $script:AadAuthenticationFactories = @{}
         }
+        $script:MsalNativeRuntimePath = $null
+        $script:MsalNativeRuntimeHandle = [IntPtr]::Zero
 
         # Determine whether MSAL is already loaded
         $msalAlreadyLoaded = $false
@@ -111,7 +113,8 @@ function Init {
         }
 
         # --------------------------------------------------------
-        # Load Broker (if not loaded) + native runtime (cross-platform)
+        # Load the managed broker assembly. Its platform runtime is loaded lazily
+        # when a broker factory is requested so other authentication modes remain usable.
         # --------------------------------------------------------
         $brokerTypePresent = ($null -ne ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
         if (-not $brokerTypePresent) {
@@ -121,15 +124,12 @@ function Init {
                 Write-Warning ("MSAL version in session is {0} but module broker is {1}. Skipping broker load to avoid version conflicts. Broker-based auth may be unavailable; browser/device-code fallback still works." -f $msalLoadedVersion, $brokerVersion)
             }
             else {
-                # Load broker extension assembly
                 if (-not (Test-Path $brokerDll)) {
                     Write-Warning "Broker DLL not found at $brokerDll. Broker-based auth will be unavailable."
                 }
                 else {
                     Add-Type -Path $brokerDll -ErrorAction Stop | Out-Null
 
-                    # Load native runtime for broker (Windows/Linux/macOS)
-                    Import-MsalNativeRuntime -ModuleRoot $moduleRoot
                 }
             }
         }

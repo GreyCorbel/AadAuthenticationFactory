@@ -7,7 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$moduleManifestPath = Join-Path $RootPath "Module\$ModuleName\$ModuleName.psd1"
+$moduleManifestPath = [System.IO.Path]::Combine($RootPath, 'Module', $ModuleName, "$ModuleName.psd1")
 $testsPath = Join-Path $RootPath 'Tests'
 
 if (-not (Test-Path $moduleManifestPath)) {

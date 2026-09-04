@@ -2,7 +2,12 @@ Set-StrictMode -Version Latest
 
 BeforeAll {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $moduleManifestPath = Join-Path $repoRoot 'Module\AadAuthenticationFactory\AadAuthenticationFactory.psd1'
+    $moduleManifestPath = [System.IO.Path]::Combine(
+        $repoRoot,
+        'Module',
+        'AadAuthenticationFactory',
+        'AadAuthenticationFactory.psd1'
+    )
 
     if (-not (Test-Path $moduleManifestPath)) {
         throw "Module manifest not found at $moduleManifestPath"
@@ -108,4 +113,3 @@ Describe 'Confidential client integration' -Tag 'integration' {
         }
     }
 }
-

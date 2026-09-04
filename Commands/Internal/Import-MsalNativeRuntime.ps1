@@ -3,36 +3,52 @@ function Import-MsalNativeRuntime {
         [Parameter(Mandatory)] [string] $ModuleRoot
     )
 
-    $rid = Get-MsalRuntimeRidFolder
-    if ([string]::IsNullOrEmpty($rid)) { return }
+    $platform = Get-MsalBrokerPlatformConfiguration
+    $nativePath = [Path]::Combine(
+        $ModuleRoot,
+        'runtimes',
+        $platform.RuntimeIdentifier,
+        'native',
+        $platform.NativeLibraryFileName
+    )
 
-    # IMPORTANT: your folder is lowercase "runtimes"
-    $nativeDir = [Path]::Combine($ModuleRoot, 'runtimes', $rid, 'native')
-    if (-not (Test-Path $nativeDir)) { return }
-
-    $candidate = Get-ChildItem -Path $nativeDir -File |
-        Where-Object {
-            $_.Name -match '^msalruntime' -and $_.Extension -in @('.dll','.so','.dylib')
-        } |
-        Select-Object -First 1
-
-    if (-not $candidate) {
-        Write-Verbose "MSAL native runtime not found in $nativeDir"
-        return
+    if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new(
+            "MSAL broker native runtime is missing for OS '$($platform.OperatingSystem)', architecture '$($platform.Architecture)', RID '$($platform.RuntimeIdentifier)'. Expected file: '$nativePath'.",
+            $nativePath
+        )
     }
 
-    if ($PSEdition -eq 'Core') {
-        [System.Runtime.InteropServices.NativeLibrary]::Load($candidate.FullName) | Out-Null
+    if ($script:MsalNativeRuntimePath -eq $nativePath -and $script:MsalNativeRuntimeHandle -ne [IntPtr]::Zero) {
+        return $platform
     }
-    else {
-        # Windows PowerShell 5.1 is Windows-only; LoadLibrary is fine
-        if ($null -eq ('Kernel32' -as [type])) {
-            $helperPath = [Path]::Combine($ModuleRoot, 'Helpers', 'Kernel32.cs')
-            $helperDefinition = Get-Content $helperPath -Raw
-            Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
+
+    try {
+        if ($PSEdition -eq 'Core') {
+            $nativeHandle = [System.Runtime.InteropServices.NativeLibrary]::Load($nativePath)
         }
-        [Kernel32]::LoadLibrary($candidate.FullName) | Out-Null
+        else {
+            if ($null -eq ('Kernel32' -as [type])) {
+                $helperPath = [Path]::Combine($ModuleRoot, 'Helpers', 'Kernel32.cs')
+                $helperDefinition = Get-Content $helperPath -Raw
+                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
+            }
+
+            $nativeHandle = [Kernel32]::LoadLibrary($nativePath)
+            if ($nativeHandle -eq [IntPtr]::Zero) {
+                $errorCode = [Kernel32]::GetLastError()
+                throw [System.ComponentModel.Win32Exception]::new([int]$errorCode)
+            }
+        }
+    }
+    catch {
+        $message = "Failed to load MSAL broker native runtime for OS '$($platform.OperatingSystem)', architecture '$($platform.Architecture)', RID '$($platform.RuntimeIdentifier)' from '$nativePath'. $($_.Exception.Message)"
+        throw [System.DllNotFoundException]::new($message, $_.Exception)
     }
 
-    Write-Information "Loaded MSAL native runtime: $($candidate.FullName)"
+    $script:MsalNativeRuntimePath = $nativePath
+    $script:MsalNativeRuntimeHandle = $nativeHandle
+    Write-Information "Loaded MSAL native runtime: $nativePath"
+
+    return $platform
 }

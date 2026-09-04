@@ -1,0 +1,59 @@
+name: Test-AadAuthenticationFactory
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PowerShell 7 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up NuGet
+        uses: nuget/setup-nuget@v3
+        with:
+          nuget-version: latest
+
+      - name: Restore module dependencies
+        shell: pwsh
+        run: |
+          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'SetupPackages.ps1'
+          & $setupPackages -RootPath $env:GITHUB_WORKSPACE -NugetPath (Get-Command nuget).Source
+
+      - name: Build module
+        shell: pwsh
+        run: |
+          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'BuildModule.ps1'
+          & $buildModule -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
+          & $runTests -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory -CI
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-results-${{ matrix.os }}
+          path: TestResults.xml
+          if-no-files-found: warn
+
