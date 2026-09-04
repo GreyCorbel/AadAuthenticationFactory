@@ -67,6 +67,36 @@ Describe 'Factory lifecycle' {
         $retrievedFactory | Should -Not -BeNullOrEmpty
         $retrievedFactory | Should -Be $createdFactory
     }
+
+    It 'loads the native runtime and creates a broker factory' {
+        $module = Get-Module -Name AadAuthenticationFactory
+        $platform = & $module { Get-MsalBrokerPlatformConfiguration }
+        $expectedPath = [System.IO.Path]::Combine(
+            $module.ModuleBase,
+            'runtimes',
+            $platform.RuntimeIdentifier,
+            'native',
+            $platform.NativeLibraryFileName
+        )
+        $factoryName = "PesterBrokerFactory_$([Guid]::NewGuid().ToString('N'))"
+
+        $factory = New-AadAuthenticationFactory `
+            -TenantId 'organizations' `
+            -AuthMode Broker `
+            -DefaultScopes @('https://management.azure.com/.default') `
+            -Name $factoryName
+        $loadedRuntime = & $module {
+            [pscustomobject]@{
+                Path = $script:MsalNativeRuntimePath
+                Handle = $script:MsalNativeRuntimeHandle
+            }
+        }
+
+        $factory | Should -Not -BeNullOrEmpty
+        $expectedPath | Should -Exist
+        $loadedRuntime.Path | Should -Be $expectedPath
+        $loadedRuntime.Handle | Should -Not -Be ([IntPtr]::Zero)
+    }
 }
 
 Describe 'Confidential client integration' -Tag 'integration' {

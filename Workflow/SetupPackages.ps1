@@ -1,44 +1,100 @@
 using namespace System.IO
 
-param
-(
- [string]$RootPath,
- [string]$nugetPath
+param(
+    [Parameter(Mandatory)]
+    [string]$RootPath
 )
 
-$packagesDir = [Path]::Combine($RootPath,'packages')
-$modulePath = [Path]::Combine($RootPath,'Module','AadAuthenticationFactory')
-$sharedPath = [Path]::Combine($modulePath,'shared')
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
-&"$nugetPath" restore ([Path]::Combine($RootPath,'Workflow','packages.config')) -packagesDirectory $packagesDir | Out-Null
-"Updating packages in the module"
-$packages = ([xml](get-content -path ([Path]::Combine($RootPath,'Workflow','packages.config')) -raw)).packages.package
-$packages
-if(-not (Test-Path -Path $sharedPath)) { New-Item -ItemType Directory -Path $sharedPath | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'net462')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'net462')) | Out-Null}
-if(-not (Test-Path -Path ([Path]::Combine($sharedPath, 'netstandard2.0')))) { New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, 'netstandard2.0')) | Out-Null}
+$dependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Dependencies.csproj')
+$packagesDir = [Path]::Combine($RootPath, 'packages')
+$modulePath = [Path]::Combine($RootPath, 'Module', 'AadAuthenticationFactory')
+$sharedPath = [Path]::Combine($modulePath, 'shared')
 
-foreach($pkg in $packages.Where{$_ -ne 'Microsoft.Identity.Client.NativeInterop'})
-{
-    "Processing: $($pkg.id) - $($pkg.version)"
-    $packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-    if(Test-Path -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")))
-    {
-        "   .NET Framework"
-        Copy-Item -Path ([Path]::Combine($packageFolder,'lib','net462',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'net462')) -Force
+if (-not (Test-Path -LiteralPath $dependencyProject -PathType Leaf)) {
+    throw "Dependency project not found at '$dependencyProject'."
+}
+
+& dotnet restore $dependencyProject --packages $packagesDir --nologo
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet restore failed with exit code $LASTEXITCODE."
+}
+
+$packageReferences = ([xml](Get-Content -LiteralPath $dependencyProject -Raw)).
+    Project.ItemGroup.PackageReference
+$targetFrameworks = @('net462', 'netstandard2.0')
+
+foreach ($targetFramework in $targetFrameworks) {
+    New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, $targetFramework)) -Force | Out-Null
+}
+
+foreach ($packageReference in $packageReferences) {
+    $packageId = [string]$packageReference.Include
+    $packageVersion = [string]$packageReference.Version
+    $packageFolder = [Path]::Combine(
+        $packagesDir,
+        $packageId.ToLowerInvariant(),
+        $packageVersion.ToLowerInvariant()
+    )
+
+    if (-not (Test-Path -LiteralPath $packageFolder -PathType Container)) {
+        throw "Restored package '$packageId' version '$packageVersion' was not found at '$packageFolder'."
     }
-    if(Test-Path -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")))
-    {
-        "   .NET Core"
-        Copy-Item -Path ([Path]::Combine($packageFolder,'lib','netstandard2.0',"$($pkg.id)`.dll")) -Destination ([Path]::Combine($sharedPath,'netstandard2.0')) -Force
+
+    Write-Host "Processing: $packageId - $packageVersion"
+    $copiedAssembly = $false
+
+    foreach ($targetFramework in $targetFrameworks) {
+        $assemblyPath = [Path]::Combine($packageFolder, 'lib', $targetFramework, "$packageId.dll")
+        if (Test-Path -LiteralPath $assemblyPath -PathType Leaf) {
+            Copy-Item -LiteralPath $assemblyPath -Destination ([Path]::Combine($sharedPath, $targetFramework)) -Force
+            $copiedAssembly = $true
+            Write-Host "   $targetFramework"
+        }
+    }
+
+    if (-not $copiedAssembly) {
+        throw "Package '$packageId' version '$packageVersion' does not contain a supported module assembly."
     }
 }
 
-#runtimes
-foreach($pkg in $packages.Where{$_.id -eq 'Microsoft.Identity.Client.NativeInterop'})
-{
-    "Processing runtimes for: $($pkg.id) - $($pkg.version)"
-    $packageFolder = [Path]::Combine($packagesDir, "$($pkg.id)`.$($pkg.version)")
-    Copy-Item -Path ([Path]::Combine($packageFolder,'runtimes')) -Destination $modulePath -Recurse -Force
+$nativeInteropReference = $packageReferences |
+    Where-Object Include -EQ 'Microsoft.Identity.Client.NativeInterop' |
+    Select-Object -First 1
+
+if ($null -eq $nativeInteropReference) {
+    throw 'Microsoft.Identity.Client.NativeInterop is missing from the dependency project.'
 }
 
+$nativeInteropFolder = [Path]::Combine(
+    $packagesDir,
+    ([string]$nativeInteropReference.Include).ToLowerInvariant(),
+    ([string]$nativeInteropReference.Version).ToLowerInvariant()
+)
+$runtimeSource = [Path]::Combine($nativeInteropFolder, 'runtimes')
+
+if (-not (Test-Path -LiteralPath $runtimeSource -PathType Container)) {
+    throw "MSAL native runtime directory was not restored at '$runtimeSource'."
+}
+
+Copy-Item -LiteralPath $runtimeSource -Destination $modulePath -Recurse -Force
+
+$requiredNativeAssets = @(
+    @('linux-x64', 'libmsalruntime.so'),
+    @('osx-arm64', 'msalruntime_arm64.dylib'),
+    @('osx-x64', 'msalruntime.dylib'),
+    @('win-arm64', 'msalruntime_arm64.dll'),
+    @('win-x64', 'msalruntime.dll'),
+    @('win-x86', 'msalruntime_x86.dll')
+)
+
+foreach ($asset in $requiredNativeAssets) {
+    $assetPath = [Path]::Combine($modulePath, 'runtimes', $asset[0], 'native', $asset[1])
+    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+        throw "Required MSAL native runtime asset is missing at '$assetPath'."
+    }
+}
+
+Write-Host 'Module dependencies restored successfully.'

@@ -32,15 +32,16 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v4
-    - uses: nuget/setup-nuget@v1
+    - name: Set up .NET SDK
+      uses: actions/setup-dotnet@v4
       with:
-        nuget-version: 'latest'
+        dotnet-version: 10.0.x
         
     - name: Setup Packages
       shell: pwsh
       run: |
         "Setting up packages"
-        &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE" -NugetPath $env:nuget
+        &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE"
 
     - name: Build Module
       uses: GreyCorbel/PsModuleActions/build-module@v1
