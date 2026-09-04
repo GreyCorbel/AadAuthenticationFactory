@@ -2,7 +2,12 @@ Set-StrictMode -Version Latest
 
 BeforeAll {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $moduleManifestPath = Join-Path $repoRoot 'Module\AadAuthenticationFactory\AadAuthenticationFactory.psd1'
+    $moduleManifestPath = [System.IO.Path]::Combine(
+        $repoRoot,
+        'Module',
+        'AadAuthenticationFactory',
+        'AadAuthenticationFactory.psd1'
+    )
 
     if (-not (Test-Path $moduleManifestPath)) {
         throw "Module manifest not found at $moduleManifestPath"
@@ -62,6 +67,36 @@ Describe 'Factory lifecycle' {
         $retrievedFactory | Should -Not -BeNullOrEmpty
         $retrievedFactory | Should -Be $createdFactory
     }
+
+    It 'loads the native runtime and creates a broker factory' {
+        $module = Get-Module -Name AadAuthenticationFactory
+        $platform = & $module { Get-MsalBrokerPlatformConfiguration }
+        $expectedPath = [System.IO.Path]::Combine(
+            $module.ModuleBase,
+            'runtimes',
+            $platform.RuntimeIdentifier,
+            'native',
+            $platform.NativeLibraryFileName
+        )
+        $factoryName = "PesterBrokerFactory_$([Guid]::NewGuid().ToString('N'))"
+
+        $factory = New-AadAuthenticationFactory `
+            -TenantId 'organizations' `
+            -AuthMode Broker `
+            -DefaultScopes @('https://management.azure.com/.default') `
+            -Name $factoryName
+        $loadedRuntime = & $module {
+            [pscustomobject]@{
+                Path = $script:MsalNativeRuntimePath
+                Handle = $script:MsalNativeRuntimeHandle
+            }
+        }
+
+        $factory | Should -Not -BeNullOrEmpty
+        $expectedPath | Should -Exist
+        $loadedRuntime.Path | Should -Be $expectedPath
+        $loadedRuntime.Handle | Should -Not -Be ([IntPtr]::Zero)
+    }
 }
 
 Describe 'Confidential client integration' -Tag 'integration' {
@@ -107,5 +142,49 @@ Describe 'Confidential client integration' -Tag 'integration' {
             $payload.aud | Should -Not -BeNullOrEmpty
         }
     }
-}
 
+    Describe 'Federated credential integration' -Tag 'integration' {
+        BeforeAll {
+            $script:federatedConfig = [pscustomobject]@{
+                TenantId = $env:AAD_TEST_TENANT_ID
+                Scope = $env:AAD_TEST_SCOPE
+                ClientId = $env:AAD_TEST_CLIENT_ID
+                ExpectedAudience = $env:AAD_TEST_EXPECTED_AUD
+                OidcAudience = $env:AAD_TEST_OIDC_AUDIENCE
+                OidcSubject = $env:AAD_TEST_OIDC_SUBJECT
+            }
+        }
+
+        It 'exchanges a GitHub OIDC credential for an Entra access token' {
+            $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
+            $encodedAudience = [Uri]::EscapeDataString($script:federatedConfig.OidcAudience)
+            $requestUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$encodedAudience"
+            $response = Invoke-RestMethod `
+                -Method Get `
+                -Uri $requestUri `
+                -Headers @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" } `
+                -ErrorAction Stop
+            $githubToken = $response.value
+            $githubPayload = Test-AadToken -Token $githubToken -PayloadOnly
+
+            $githubToken | Should -Not -BeNullOrEmpty
+            $githubPayload.iss | Should -Be 'https://token.actions.githubusercontent.com'
+            $githubPayload.aud | Should -Be $script:federatedConfig.OidcAudience
+            $githubPayload.sub | Should -Be $script:federatedConfig.OidcSubject
+
+            $factory = New-AadAuthenticationFactory `
+                -TenantId $script:federatedConfig.TenantId `
+                -ClientId $script:federatedConfig.ClientId `
+                -Assertion $githubToken `
+                -DefaultScopes @($script:federatedConfig.Scope)
+
+            $tokenResult = Get-AadToken -Factory $factory -ErrorAction Stop
+            $payload = Test-AadToken -Token $tokenResult -PayloadOnly
+
+            $tokenResult | Should -Not -BeNullOrEmpty
+            $tokenResult.AccessToken | Should -Not -BeNullOrEmpty
+            $payload | Should -Not -BeNullOrEmpty
+            $payload.aud | Should -Be $script:federatedConfig.ExpectedAudience
+        }
+    }
+}

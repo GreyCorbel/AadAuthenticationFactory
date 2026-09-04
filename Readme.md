@@ -12,7 +12,9 @@ Module supports standard AAD tenants as well as AAD B2C tenants. Module has been
 
 **Obsolete flow:** The Resource Owner Password flow is obsolete and support for it will be removed in the next release because Microsoft's initiative to enforce multifactor authentication is incompatible with password-only sign-in. Use an interactive, device code, broker, confidential client, or managed identity flow instead.
 
-_Note_: Some authentication methods are not available in all scenarios (e.g. WAM and Windows integrated authentication only work on Windows)
+_Note_: Some authentication methods are not available in all scenarios (e.g. Windows integrated authentication only works on Windows).
+
+Broker authentication supports Windows x64, x86, and ARM64; macOS x64 and ARM64; and Linux x64. Linux ARM64 is not supported because the MSAL native runtime package does not currently include that runtime. macOS broker authentication requires an enrolled device with Company Portal, uses the unsigned-script redirect URI `msauth.com.msauth.unsignedapp://auth`, and interactive calls must run on the main thread.
 
 Module comes with commands:
 

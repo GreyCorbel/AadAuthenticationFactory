@@ -363,19 +363,29 @@ Creates a public client factory that uses the OS broker where available.
                             break
                         }
                         {$_ -in 'WAM','Broker'} {
-                            
-                            $flowType = [AuthenticationFlow]::PublicClientWithWam
-                            $os =
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows -bor
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux   -bor
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::OSX
+                            if ($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])) {
+                                throw [InvalidOperationException]::new(
+                                    'MSAL broker authentication is unavailable because the managed Microsoft.Identity.Client.Broker assembly was not loaded. Import AadAuthenticationFactory before modules that load a different MSAL version.'
+                                )
+                            }
 
-                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($os)
+                            $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            $flowType = [AuthenticationFlow]::PublicClientWithWam
+                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($brokerPlatform.BrokerOperatingSystem)
                             $brokerOptions.Title = "AadAuthenticationFactory"
-                            $brokerOptions.ListOperatingSystemAccounts = $true
+                            $brokerOptions.ListOperatingSystemAccounts = $brokerPlatform.ListOperatingSystemAccounts
                             $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$brokerOptions)
-                            $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
-                            $builder = $builder.WithRedirectUri("http://localhost")
+
+                            if ($brokerPlatform.UseParentWindow) {
+                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                            }
+
+                            if ($brokerPlatform.UseDefaultRedirectUri) {
+                                $builder = $builder.WithDefaultRedirectUri()
+                            }
+                            else {
+                                $builder = $builder.WithRedirectUri($brokerPlatform.RedirectUri)
+                            }
                             break
                         }
                         Default {

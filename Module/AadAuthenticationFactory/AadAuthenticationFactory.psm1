@@ -957,19 +957,29 @@ Creates a public client factory that uses the OS broker where available.
                             break
                         }
                         {$_ -in 'WAM','Broker'} {
-                            
-                            $flowType = [AuthenticationFlow]::PublicClientWithWam
-                            $os =
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows -bor
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux   -bor
-                            [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::OSX
+                            if ($null -eq ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])) {
+                                throw [InvalidOperationException]::new(
+                                    'MSAL broker authentication is unavailable because the managed Microsoft.Identity.Client.Broker assembly was not loaded. Import AadAuthenticationFactory before modules that load a different MSAL version.'
+                                )
+                            }
 
-                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($os)
+                            $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            $flowType = [AuthenticationFlow]::PublicClientWithWam
+                            $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($brokerPlatform.BrokerOperatingSystem)
                             $brokerOptions.Title = "AadAuthenticationFactory"
-                            $brokerOptions.ListOperatingSystemAccounts = $true
+                            $brokerOptions.ListOperatingSystemAccounts = $brokerPlatform.ListOperatingSystemAccounts
                             $builder = [Microsoft.Identity.Client.Broker.BrokerExtension]::WithBroker($builder,$brokerOptions)
-                            $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
-                            $builder = $builder.WithRedirectUri("http://localhost")
+
+                            if ($brokerPlatform.UseParentWindow) {
+                                $builder = $builder.WithParentActivityOrWindow([ParentWindowHelper]::ConsoleWindowHandleProvider)
+                            }
+
+                            if ($brokerPlatform.UseDefaultRedirectUri) {
+                                $builder = $builder.WithDefaultRedirectUri()
+                            }
+                            else {
+                                $builder = $builder.WithRedirectUri($brokerPlatform.RedirectUri)
+                            }
                             break
                         }
                         Default {
@@ -1501,72 +1511,142 @@ function Get-AssemblyVersionFromPath {
         return $null
     }
 }
-function Get-MsalRuntimeRidFolder {
-    # returns one of: win-x64, win-x86, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+function Get-MsalBrokerPlatformConfiguration {
+    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
 
     if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
-        switch ($arch) {
-            'X64'   { return 'win-x64' }
-            'X86'   { return 'win-x86' }
-            'Arm64' { return 'win-arm64' }
-            default { return 'win-x64' }
+        $runtime = switch ($architecture) {
+            'X64'   { @{ Rid = 'win-x64'; NativeLibrary = 'msalruntime.dll' } }
+            'X86'   { @{ Rid = 'win-x86'; NativeLibrary = 'msalruntime_x86.dll' } }
+            'Arm64' { @{ Rid = 'win-arm64'; NativeLibrary = 'msalruntime_arm64.dll' } }
+            default { $null }
         }
-    }
-    elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) {
-        switch ($arch) {
-            'X64'   { return 'linux-x64' }
-            'Arm64' { return 'linux-arm64' }
-            default { return 'linux-x64' }
+
+        if ($null -eq $runtime) {
+            throw [PlatformNotSupportedException]::new(
+                "MSAL broker authentication is not supported on Windows architecture '$architecture'. Supported architectures: X64, X86, Arm64."
+            )
         }
-    }
-    elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
-        switch ($arch) {
-            'X64'   { return 'osx-x64' }
-            'Arm64' { return 'osx-arm64' }
-            default { return 'osx-x64' }
+
+        return [pscustomobject]@{
+            OperatingSystem = 'Windows'
+            Architecture = $architecture
+            RuntimeIdentifier = $runtime.Rid
+            NativeLibraryFileName = $runtime.NativeLibrary
+            BrokerOperatingSystem = [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Windows
+            RedirectUri = $null
+            UseDefaultRedirectUri = $true
+            UseParentWindow = $true
+            ListOperatingSystemAccounts = $true
         }
     }
 
-    return $null
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) {
+        if ($architecture -ne 'X64') {
+            throw [PlatformNotSupportedException]::new(
+                "MSAL broker authentication is not supported on Linux architecture '$architecture' because the bundled native runtime only supports X64."
+            )
+        }
+
+        return [pscustomobject]@{
+            OperatingSystem = 'Linux'
+            Architecture = $architecture
+            RuntimeIdentifier = 'linux-x64'
+            NativeLibraryFileName = 'libmsalruntime.so'
+            BrokerOperatingSystem = [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::Linux
+            RedirectUri = $null
+            UseDefaultRedirectUri = $true
+            UseParentWindow = $false
+            ListOperatingSystemAccounts = $true
+        }
+    }
+
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+        $runtime = switch ($architecture) {
+            'X64'   { @{ Rid = 'osx-x64'; NativeLibrary = 'msalruntime.dylib' } }
+            'Arm64' { @{ Rid = 'osx-arm64'; NativeLibrary = 'msalruntime_arm64.dylib' } }
+            default { $null }
+        }
+
+        if ($null -eq $runtime) {
+            throw [PlatformNotSupportedException]::new(
+                "MSAL broker authentication is not supported on macOS architecture '$architecture'. Supported architectures: X64, Arm64."
+            )
+        }
+
+        return [pscustomobject]@{
+            OperatingSystem = 'macOS'
+            Architecture = $architecture
+            RuntimeIdentifier = $runtime.Rid
+            NativeLibraryFileName = $runtime.NativeLibrary
+            BrokerOperatingSystem = [Microsoft.Identity.Client.BrokerOptions+OperatingSystems]::OSX
+            RedirectUri = 'msauth.com.msauth.unsignedapp://auth'
+            UseDefaultRedirectUri = $false
+            UseParentWindow = $false
+            ListOperatingSystemAccounts = $false
+        }
+    }
+
+    throw [PlatformNotSupportedException]::new(
+        "MSAL broker authentication is not supported on operating system '$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription)'."
+    )
+}
+function Get-MsalRuntimeRidFolder {
+    (Get-MsalBrokerPlatformConfiguration).RuntimeIdentifier
 }
 function Import-MsalNativeRuntime {
     param(
         [Parameter(Mandatory)] [string] $ModuleRoot
     )
 
-    $rid = Get-MsalRuntimeRidFolder
-    if ([string]::IsNullOrEmpty($rid)) { return }
+    $platform = Get-MsalBrokerPlatformConfiguration
+    $nativePath = [Path]::Combine(
+        $ModuleRoot,
+        'runtimes',
+        $platform.RuntimeIdentifier,
+        'native',
+        $platform.NativeLibraryFileName
+    )
 
-    # IMPORTANT: your folder is lowercase "runtimes"
-    $nativeDir = [Path]::Combine($ModuleRoot, 'runtimes', $rid, 'native')
-    if (-not (Test-Path $nativeDir)) { return }
-
-    $candidate = Get-ChildItem -Path $nativeDir -File |
-        Where-Object {
-            $_.Name -match '^msalruntime' -and $_.Extension -in @('.dll','.so','.dylib')
-        } |
-        Select-Object -First 1
-
-    if (-not $candidate) {
-        Write-Verbose "MSAL native runtime not found in $nativeDir"
-        return
+    if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new(
+            "MSAL broker native runtime is missing for OS '$($platform.OperatingSystem)', architecture '$($platform.Architecture)', RID '$($platform.RuntimeIdentifier)'. Expected file: '$nativePath'.",
+            $nativePath
+        )
     }
 
-    if ($PSEdition -eq 'Core') {
-        [System.Runtime.InteropServices.NativeLibrary]::Load($candidate.FullName) | Out-Null
+    if ($script:MsalNativeRuntimePath -eq $nativePath -and $script:MsalNativeRuntimeHandle -ne [IntPtr]::Zero) {
+        return $platform
     }
-    else {
-        # Windows PowerShell 5.1 is Windows-only; LoadLibrary is fine
-        if ($null -eq ('Kernel32' -as [type])) {
-            $helperPath = [Path]::Combine($ModuleRoot, 'Helpers', 'Kernel32.cs')
-            $helperDefinition = Get-Content $helperPath -Raw
-            Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
+
+    try {
+        if ($PSEdition -eq 'Core') {
+            $nativeHandle = [System.Runtime.InteropServices.NativeLibrary]::Load($nativePath)
         }
-        [Kernel32]::LoadLibrary($candidate.FullName) | Out-Null
+        else {
+            if ($null -eq ('Kernel32' -as [type])) {
+                $helperPath = [Path]::Combine($ModuleRoot, 'Helpers', 'Kernel32.cs')
+                $helperDefinition = Get-Content $helperPath -Raw
+                Add-Type -TypeDefinition $helperDefinition -ReferencedAssemblies @('System.Runtime.InteropServices') -WarningAction SilentlyContinue -IgnoreWarnings
+            }
+
+            $nativeHandle = [Kernel32]::LoadLibrary($nativePath)
+            if ($nativeHandle -eq [IntPtr]::Zero) {
+                $errorCode = [Kernel32]::GetLastError()
+                throw [System.ComponentModel.Win32Exception]::new([int]$errorCode)
+            }
+        }
+    }
+    catch {
+        $message = "Failed to load MSAL broker native runtime for OS '$($platform.OperatingSystem)', architecture '$($platform.Architecture)', RID '$($platform.RuntimeIdentifier)' from '$nativePath'. $($_.Exception.Message)"
+        throw [System.DllNotFoundException]::new($message, $_.Exception)
     }
 
-    Write-Information "Loaded MSAL native runtime: $($candidate.FullName)"
+    $script:MsalNativeRuntimePath = $nativePath
+    $script:MsalNativeRuntimeHandle = $nativeHandle
+    Write-Information "Loaded MSAL native runtime: $nativePath"
+
+    return $platform
 }
 function Init {
     param()
@@ -1588,6 +1668,8 @@ function Init {
         if ($null -eq $script:AadAuthenticationFactories -or -not ($script:AadAuthenticationFactories -is [hashtable])) {
             $script:AadAuthenticationFactories = @{}
         }
+        $script:MsalNativeRuntimePath = $null
+        $script:MsalNativeRuntimeHandle = [IntPtr]::Zero
 
         # Determine whether MSAL is already loaded
         $msalAlreadyLoaded = $false
@@ -1681,7 +1763,8 @@ function Init {
         }
 
         # --------------------------------------------------------
-        # Load Broker (if not loaded) + native runtime (cross-platform)
+        # Load the managed broker assembly. Its platform runtime is loaded lazily
+        # when a broker factory is requested so other authentication modes remain usable.
         # --------------------------------------------------------
         $brokerTypePresent = ($null -ne ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type]))
         if (-not $brokerTypePresent) {
@@ -1691,15 +1774,12 @@ function Init {
                 Write-Warning ("MSAL version in session is {0} but module broker is {1}. Skipping broker load to avoid version conflicts. Broker-based auth may be unavailable; browser/device-code fallback still works." -f $msalLoadedVersion, $brokerVersion)
             }
             else {
-                # Load broker extension assembly
                 if (-not (Test-Path $brokerDll)) {
                     Write-Warning "Broker DLL not found at $brokerDll. Broker-based auth will be unavailable."
                 }
                 else {
                     Add-Type -Path $brokerDll -ErrorAction Stop | Out-Null
 
-                    # Load native runtime for broker (Windows/Linux/macOS)
-                    Import-MsalNativeRuntime -ModuleRoot $moduleRoot
                 }
             }
         }
