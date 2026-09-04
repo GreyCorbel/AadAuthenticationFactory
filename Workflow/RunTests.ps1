@@ -27,7 +27,11 @@ if ($RequireIntegrationConfiguration.IsPresent) {
         'AAD_TEST_SCOPE',
         'AAD_TEST_CLIENT_ID',
         'AAD_TEST_CLIENT_SECRET',
-        'AAD_TEST_EXPECTED_AUD'
+        'AAD_TEST_EXPECTED_AUD',
+        'AAD_TEST_OIDC_AUDIENCE',
+        'AAD_TEST_OIDC_SUBJECT',
+        'ACTIONS_ID_TOKEN_REQUEST_URL',
+        'ACTIONS_ID_TOKEN_REQUEST_TOKEN'
     )
     $missingVariables = $requiredVariables.Where{
         [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))

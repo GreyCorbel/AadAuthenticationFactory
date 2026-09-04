@@ -69,12 +69,17 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: confidential-client-integration
+    permissions:
+      contents: read
+      id-token: write
     env:
       AAD_TEST_TENANT_ID: ${{ secrets.AAD_TEST_TENANT_ID }}
       AAD_TEST_SCOPE: ${{ secrets.AAD_TEST_SCOPE }}
       AAD_TEST_CLIENT_ID: ${{ secrets.AAD_TEST_CLIENT_ID }}
       AAD_TEST_CLIENT_SECRET: ${{ secrets.AAD_TEST_CLIENT_SECRET }}
       AAD_TEST_EXPECTED_AUD: ${{ secrets.AAD_TEST_EXPECTED_AUD }}
+      AAD_TEST_OIDC_AUDIENCE: ${{ secrets.AAD_TEST_OIDC_AUDIENCE }}
+      AAD_TEST_OIDC_SUBJECT: ${{ secrets.AAD_TEST_OIDC_SUBJECT }}
 
     steps:
       - name: Check out repository
