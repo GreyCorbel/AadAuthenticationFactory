@@ -54,12 +54,64 @@ jobs:
         shell: pwsh
         run: |
           $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
-          & $runTests -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory -CI
+          & $runTests -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory -ExcludeTag integration -CI
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pester-results-${{ matrix.os }}
+          path: TestResults.xml
+          if-no-files-found: warn
+
+  confidential-client-integration:
+    name: Confidential client integration
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: confidential-client-integration
+    env:
+      AAD_TEST_TENANT_ID: ${{ secrets.AAD_TEST_TENANT_ID }}
+      AAD_TEST_SCOPE: ${{ secrets.AAD_TEST_SCOPE }}
+      AAD_TEST_CLIENT_ID: ${{ secrets.AAD_TEST_CLIENT_ID }}
+      AAD_TEST_CLIENT_SECRET: ${{ secrets.AAD_TEST_CLIENT_SECRET }}
+      AAD_TEST_EXPECTED_AUD: ${{ secrets.AAD_TEST_EXPECTED_AUD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore module dependencies
+        shell: pwsh
+        run: |
+          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'SetupPackages.ps1'
+          & $setupPackages -RootPath $env:GITHUB_WORKSPACE
+
+      - name: Build module
+        shell: pwsh
+        run: |
+          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'BuildModule.ps1'
+          & $buildModule -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory
+
+      - name: Run confidential client integration test
+        shell: pwsh
+        run: |
+          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
+          & $runTests `
+            -RootPath $env:GITHUB_WORKSPACE `
+            -ModuleName AadAuthenticationFactory `
+            -Tag integration `
+            -RequireIntegrationConfiguration `
+            -CI
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: confidential-client-integration-results
           path: TestResults.xml
           if-no-files-found: warn

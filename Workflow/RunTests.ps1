@@ -1,6 +1,9 @@
 param(
     [string]$RootPath = (Split-Path -Parent $PSScriptRoot),
     [string]$ModuleName = 'AadAuthenticationFactory',
+    [string[]]$Tag,
+    [string[]]$ExcludeTag,
+    [switch]$RequireIntegrationConfiguration,
     [switch]$CI
 )
 
@@ -16,6 +19,23 @@ if (-not (Test-Path $moduleManifestPath)) {
 
 if (-not (Test-Path $testsPath)) {
     throw "Tests folder not found at $testsPath"
+}
+
+if ($RequireIntegrationConfiguration.IsPresent) {
+    $requiredVariables = @(
+        'AAD_TEST_TENANT_ID',
+        'AAD_TEST_SCOPE',
+        'AAD_TEST_CLIENT_ID',
+        'AAD_TEST_CLIENT_SECRET',
+        'AAD_TEST_EXPECTED_AUD'
+    )
+    $missingVariables = $requiredVariables.Where{
+        [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+    }
+
+    if ($missingVariables.Count -gt 0) {
+        throw "Required integration environment variables are missing: $($missingVariables -join ', ')."
+    }
 }
 
 $minimumPesterVersion = [Version]'5.5.0'
@@ -34,6 +54,14 @@ $configuration = [PesterConfiguration]::Default
 $configuration.Run.Path = $testsPath
 $configuration.Run.PassThru = $true
 $configuration.Output.Verbosity = 'Detailed'
+
+if (@($Tag).Count -gt 0) {
+    $configuration.Filter.Tag = $Tag
+}
+
+if (@($ExcludeTag).Count -gt 0) {
+    $configuration.Filter.ExcludeTag = $ExcludeTag
+}
 
 if ($CI.IsPresent) {
     $configuration.TestResult.Enabled = $true
