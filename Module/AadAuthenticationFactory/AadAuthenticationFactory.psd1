@@ -110,7 +110,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/GreyCorbel/AadAuthenticationFactory'
 
         # Prerelease string of this module
-        Prerelease = 'beta4'
+        Prerelease = 'beta5'
 
         # Flag to indicate whether the module requires explicit user acceptance for install/update/save
         RequireLicenseAcceptance = $false
