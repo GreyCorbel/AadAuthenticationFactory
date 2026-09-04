@@ -31,6 +31,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install Linux broker runtime dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libwebkit2gtk-4.1-0
+
       - name: Restore module dependencies
         shell: pwsh
         run: |
