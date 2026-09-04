@@ -153,9 +153,24 @@ Describe 'Confidential client integration' -Tag 'integration' {
                 OidcAudience = $env:AAD_TEST_OIDC_AUDIENCE
                 OidcSubject = $env:AAD_TEST_OIDC_SUBJECT
             }
+
+            $script:canRunFederatedIntegration =
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.TenantId) -and
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.Scope) -and
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.ClientId) -and
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.ExpectedAudience) -and
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.OidcAudience) -and
+                -not [string]::IsNullOrWhiteSpace($script:federatedConfig.OidcSubject) -and
+                -not [string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_URL) -and
+                -not [string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)
         }
 
         It 'exchanges a GitHub OIDC credential for an Entra access token' {
+            if (-not $script:canRunFederatedIntegration) {
+                Set-ItResult -Skipped -Because 'Federated integration environment variables not configured'
+                return
+            }
+
             $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
             $encodedAudience = [Uri]::EscapeDataString($script:federatedConfig.OidcAudience)
             $requestUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$encodedAudience"
