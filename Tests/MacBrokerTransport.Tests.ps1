@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 
-BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '../Module/AadAuthenticationFactory/AadAuthenticationFactory.psd1') -Force -ErrorAction Stop
+BeforeDiscovery {
+    Import-Module (Join-Path $PSScriptRoot '../Module/AadAuthenticationFactory/AadAuthenticationFactory.psd1') -ErrorAction Stop
 }
 
 Describe 'Mac broker process transport' -Skip:(

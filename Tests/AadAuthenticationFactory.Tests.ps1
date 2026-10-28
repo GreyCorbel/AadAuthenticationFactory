@@ -13,7 +13,7 @@ BeforeAll {
         throw "Module manifest not found at $moduleManifestPath"
     }
 
-    Import-Module $moduleManifestPath -Force -ErrorAction Stop
+    Import-Module $moduleManifestPath -ErrorAction Stop
 
     function ConvertTo-Base64Url {
         param(
