@@ -31,6 +31,10 @@ jobs:
     - uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.0.x
+    - name: Restore module dependencies
+      shell: pwsh
+      run: |
+        & ./Workflow/SetupPackages.ps1 -RootPath $env:GITHUB_WORKSPACE
     - name: Publish both macOS architectures
       shell: pwsh
       run: |
