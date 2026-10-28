@@ -227,6 +227,33 @@ Returns an Authorization header hashtable that can be used with Invoke-RestMetho
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithWam) {
+                    if ($null -ne $Factory.PSObject.Properties['MacBrokerConfiguration']) {
+                        $brokerParameters = @{
+                            Factory = $Factory
+                            Operation = 'token'
+                            Scopes = $Scopes
+                            LoginHint = $UserName
+                            ForceRefresh = [bool]$ForceRefresh
+                            AllowInteractive = $true
+                            CancellationTokenSource = $cts
+                        }
+                        if ($null -ne $account) {
+                            $brokerParameters.HomeAccountId = $account.HomeAccountId.Identifier
+                            # UserName is a regex filter in Get-AadAccount, not necessarily a login hint.
+                            $brokerParameters.LoginHint = $account.Username
+                        }
+                        if ($null -ne $WwwAuthenticateParameters) {
+                            $brokerParameters.Authority = $WwwAuthenticateParameters.Authority
+                            $brokerParameters.Claims = $WwwAuthenticateParameters.Claims
+                        }
+                        if ($SshKeyLength -gt 0) {
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $brokerParameters.SshKeyId = $jwk.kid
+                            $brokerParameters.SshJwk = $jwk | Select-Object -ExcludeProperty kid | ConvertTo-Json -Depth 10 -Compress
+                        }
+                        $rslt = Invoke-MacBroker @brokerParameters
+                        break
+                    }
                     if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
                     {
                         <# Write-Verbose "Getting token for OperatingSystemAccount"

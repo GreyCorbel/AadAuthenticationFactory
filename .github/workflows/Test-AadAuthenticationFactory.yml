@@ -50,6 +50,12 @@ jobs:
           $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'BuildModule.ps1'
           & $buildModule -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory
 
+      - name: Build macOS broker helpers
+        if: runner.os == 'macOS'
+        shell: pwsh
+        run: |
+          & ./Workflow/BuildMacBroker.ps1 -RootPath $env:GITHUB_WORKSPACE
+
       - name: Run Pester tests
         shell: pwsh
         run: |

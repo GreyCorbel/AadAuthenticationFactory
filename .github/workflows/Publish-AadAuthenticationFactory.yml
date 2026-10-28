@@ -21,6 +21,30 @@ on:
         default: true
 
 jobs:
+  buildMacBroker:
+    name: Build macOS broker helpers
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish both macOS architectures
+      shell: pwsh
+      run: |
+        & ./Workflow/BuildMacBroker.ps1 -RootPath $env:GITHUB_WORKSPACE
+        $env:AAD_AUTHENTICATION_POWERSHELL_HOME = $PSHOME
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
+        & "./Module/AadAuthenticationFactory/bin/osx-$architecture/AadAuthenticationFactory.MacBroker" --probe
+        if ($LASTEXITCODE -ne 0) { throw 'macOS broker native probe failed.' }
+    - uses: actions/upload-artifact@v7
+      with:
+        name: macos-broker-helpers
+        path: Module/AadAuthenticationFactory/bin/
+        if-no-files-found: error
+
   integrationTests:
     name: Confidential client integration
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.runTests }}
@@ -75,10 +99,9 @@ jobs:
         path: TestResults.xml
         if-no-files-found: warn
 
-  # This workflow contains a single job called "publishToGallery"
   publishToGallery:
-    needs: integrationTests
-    if: ${{ always() && (needs.integrationTests.result == 'success' || needs.integrationTests.result == 'skipped') }}
+    needs: [integrationTests, buildMacBroker]
+    if: ${{ always() && needs.buildMacBroker.result == 'success' && (needs.integrationTests.result == 'success' || needs.integrationTests.result == 'skipped') }}
     # The type of runner that the job will run on
     runs-on: windows-latest
     env: 
@@ -88,6 +111,11 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v7
+    - name: Include macOS broker helpers
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-broker-helpers
+        path: Module/AadAuthenticationFactory/bin/
     - name: Set up .NET SDK
       uses: actions/setup-dotnet@v6
       with:

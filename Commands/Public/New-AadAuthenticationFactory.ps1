@@ -24,6 +24,8 @@ function New-AadAuthenticationFactory
 
 .PARAMETER ClientId
     Application client ID. If omitted, the module's default client ID is used.
+    macOS Broker/WAM factories instead use the configured macOS broker default,
+    04b07795-8ddb-461a-bbee-02f9e1bf7b46, which supports the broker redirect URI.
 
 .PARAMETER RedirectUri
     Redirect URI to use for public or confidential client authentication.
@@ -249,11 +251,16 @@ Creates a public client factory that uses the OS broker where available.
         if($null -ne $Module.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($Module.privatedata.psdata.Prerelease)"}
 
         $useDefaultCredentials = $false
+        $macBrokerConfiguration = $null
 
         $defaultClientId = Get-AadDefaultClientId
         if([string]::IsNullOrEmpty($ClientId))
         {
             $ClientId = $defaultClientId
+            if ($AuthMode -in 'Broker', 'WAM' -and
+                [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+                $ClientId = $Module.PrivateData.Configuration.MacBrokerDefaultClientId
+            }
         }
 
         if([string]::IsNullOrEmpty($B2CPolicy))
@@ -369,7 +376,24 @@ Creates a public client factory that uses the OS broker where available.
                                 )
                             }
 
-                            $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            $brokerPlatform = Get-MsalBrokerPlatformConfiguration
+                            if ($brokerPlatform.OperatingSystem -eq 'macOS') {
+                                if (-not [string]::IsNullOrEmpty($B2CPolicy) -or $null -ne $Proxy) {
+                                    throw [NotSupportedException]::new(
+                                        'macOS broker authentication does not support B2C policies or an explicit -Proxy. Use a non-broker authentication mode for these options.'
+                                    )
+                                }
+                                $macBrokerConfiguration = [pscustomobject]@{
+                                    ExecutablePath = Get-MacBrokerExecutablePath -ModuleRoot $PSScriptRoot
+                                    Authority = $AuthorityUri
+                                    MultiCloud = [bool]$Multicloud
+                                    ClaimsSupport = [bool]$WithClaimsRequestSupport
+                                    ExperimentalFeatures = [bool]$EnableExperimentalFeatures
+                                }
+                            }
+                            else {
+                                $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            }
                             $flowType = [AuthenticationFlow]::PublicClientWithWam
                             $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($brokerPlatform.BrokerOperatingSystem)
                             $brokerOptions.Title = "AadAuthenticationFactory"
@@ -430,6 +454,10 @@ Creates a public client factory that uses the OS broker where available.
         | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
         | Add-Member -MemberType NoteProperty -Name TenantId -Value $TenantId -PassThru `
         | Add-Member -MemberType NoteProperty -Name HttpClientFactory -Value $httpFactory -PassThru
+
+        if ($null -ne $macBrokerConfiguration) {
+            $factory | Add-Member -MemberType NoteProperty -Name MacBrokerConfiguration -Value $macBrokerConfiguration
+        }
 
         #Give the factory common type name for formatting
         $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')

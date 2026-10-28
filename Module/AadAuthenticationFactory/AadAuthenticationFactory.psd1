@@ -110,7 +110,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/GreyCorbel/AadAuthenticationFactory'
 
         # Prerelease string of this module
-        Prerelease = 'beta5'
+        Prerelease = 'beta6'
 
         # Flag to indicate whether the module requires explicit user acceptance for install/update/save
         RequireLicenseAcceptance = $false
@@ -124,6 +124,7 @@ PrivateData = @{
     } # End of PSData hashtable
     Configuration = @{
         DefaultClientId = '1950a258-227b-4e31-a9cf-717495945fc2'
+        MacBrokerDefaultClientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46'
     }
     # HelpInfo URI of this module
     # HelpInfoURI = ''

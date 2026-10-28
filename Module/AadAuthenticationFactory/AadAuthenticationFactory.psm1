@@ -70,7 +70,11 @@ Returns cached accounts from the named factory whose user name matches 'john'.
 
         if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
-            if([string]::IsNullOrEmpty($Factory.B2CPolicy))
+            if ($null -ne $Factory.PSObject.Properties['MacBrokerConfiguration'])
+            {
+                $allAccounts = @(Invoke-MacBroker -Factory $Factory -Operation accounts -CancellationTokenSource $cts)
+            }
+            elseif([string]::IsNullOrEmpty($Factory.B2CPolicy))
             {
                 $allAccounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
             }
@@ -186,6 +190,8 @@ function Get-AadDefaultClientId
     Returns the default client ID used when New-AadAuthenticationFactory is
     called without an explicit ClientId. The configured default is the Azure
     PowerShell public client application ID.
+    macOS Broker/WAM factories use a separate broker-compatible default client;
+    this command continues to return the general default.
 
 .OUTPUTS
     System.String
@@ -437,6 +443,33 @@ Returns an Authorization header hashtable that can be used with Invoke-RestMetho
                     break;
                 }
                 ([AuthenticationFlow]::PublicClientWithWam) {
+                    if ($null -ne $Factory.PSObject.Properties['MacBrokerConfiguration']) {
+                        $brokerParameters = @{
+                            Factory = $Factory
+                            Operation = 'token'
+                            Scopes = $Scopes
+                            LoginHint = $UserName
+                            ForceRefresh = [bool]$ForceRefresh
+                            AllowInteractive = $true
+                            CancellationTokenSource = $cts
+                        }
+                        if ($null -ne $account) {
+                            $brokerParameters.HomeAccountId = $account.HomeAccountId.Identifier
+                            # UserName is a regex filter in Get-AadAccount, not necessarily a login hint.
+                            $brokerParameters.LoginHint = $account.Username
+                        }
+                        if ($null -ne $WwwAuthenticateParameters) {
+                            $brokerParameters.Authority = $WwwAuthenticateParameters.Authority
+                            $brokerParameters.Claims = $WwwAuthenticateParameters.Claims
+                        }
+                        if ($SshKeyLength -gt 0) {
+                            $jwk = NewJwk -KeyLength $SshKeyLength
+                            $brokerParameters.SshKeyId = $jwk.kid
+                            $brokerParameters.SshJwk = $jwk | Select-Object -ExcludeProperty kid | ConvertTo-Json -Depth 10 -Compress
+                        }
+                        $rslt = Invoke-MacBroker @brokerParameters
+                        break
+                    }
                     if($null -eq $Account -and [string]::IsNullOrEmpty($userName))
                     {
                         <# Write-Verbose "Getting token for OperatingSystemAccount"
@@ -618,6 +651,8 @@ function New-AadAuthenticationFactory
 
 .PARAMETER ClientId
     Application client ID. If omitted, the module's default client ID is used.
+    macOS Broker/WAM factories instead use the configured macOS broker default,
+    04b07795-8ddb-461a-bbee-02f9e1bf7b46, which supports the broker redirect URI.
 
 .PARAMETER RedirectUri
     Redirect URI to use for public or confidential client authentication.
@@ -843,11 +878,16 @@ Creates a public client factory that uses the OS broker where available.
         if($null -ne $Module.privatedata.psdata.Prerelease) {$moduleVersion = "$moduleVersion`-$($Module.privatedata.psdata.Prerelease)"}
 
         $useDefaultCredentials = $false
+        $macBrokerConfiguration = $null
 
         $defaultClientId = Get-AadDefaultClientId
         if([string]::IsNullOrEmpty($ClientId))
         {
             $ClientId = $defaultClientId
+            if ($AuthMode -in 'Broker', 'WAM' -and
+                [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+                $ClientId = $Module.PrivateData.Configuration.MacBrokerDefaultClientId
+            }
         }
 
         if([string]::IsNullOrEmpty($B2CPolicy))
@@ -963,7 +1003,24 @@ Creates a public client factory that uses the OS broker where available.
                                 )
                             }
 
-                            $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            $brokerPlatform = Get-MsalBrokerPlatformConfiguration
+                            if ($brokerPlatform.OperatingSystem -eq 'macOS') {
+                                if (-not [string]::IsNullOrEmpty($B2CPolicy) -or $null -ne $Proxy) {
+                                    throw [NotSupportedException]::new(
+                                        'macOS broker authentication does not support B2C policies or an explicit -Proxy. Use a non-broker authentication mode for these options.'
+                                    )
+                                }
+                                $macBrokerConfiguration = [pscustomobject]@{
+                                    ExecutablePath = Get-MacBrokerExecutablePath -ModuleRoot $PSScriptRoot
+                                    Authority = $AuthorityUri
+                                    MultiCloud = [bool]$Multicloud
+                                    ClaimsSupport = [bool]$WithClaimsRequestSupport
+                                    ExperimentalFeatures = [bool]$EnableExperimentalFeatures
+                                }
+                            }
+                            else {
+                                $brokerPlatform = Import-MsalNativeRuntime -ModuleRoot $PSScriptRoot
+                            }
                             $flowType = [AuthenticationFlow]::PublicClientWithWam
                             $brokerOptions = [Microsoft.Identity.Client.BrokerOptions]::new($brokerPlatform.BrokerOperatingSystem)
                             $brokerOptions.Title = "AadAuthenticationFactory"
@@ -1024,6 +1081,10 @@ Creates a public client factory that uses the OS broker where available.
         | Add-Member -MemberType NoteProperty -Name B2CPolicy -Value $B2CPolicy -PassThru `
         | Add-Member -MemberType NoteProperty -Name TenantId -Value $TenantId -PassThru `
         | Add-Member -MemberType NoteProperty -Name HttpClientFactory -Value $httpFactory -PassThru
+
+        if ($null -ne $macBrokerConfiguration) {
+            $factory | Add-Member -MemberType NoteProperty -Name MacBrokerConfiguration -Value $macBrokerConfiguration
+        }
 
         #Give the factory common type name for formatting
         $factory.psobject.typenames.Insert(0,'GreyCorbel.Identity.Authentication.AadAuthenticationFactory')
@@ -1502,6 +1563,76 @@ function WithForceRefresh
         return $builder
     }
 }
+function ConvertFrom-MacBrokerAccount {
+    param([Parameter(Mandatory)] $Account)
+
+    if ([string]::IsNullOrEmpty($Account.HomeAccountId)) {
+        throw [System.IO.InvalidDataException]::new('The macOS broker returned an account without a home account ID.')
+    }
+    if ($null -eq ('AadAuthenticationFactory.MacBrokerAccount' -as [type])) {
+        $helperPath = [Path]::Combine($PSScriptRoot, 'Helpers', 'MacBrokerAccount.cs')
+        Add-Type -Path $helperPath -ReferencedAssemblies ([Microsoft.Identity.Client.IAccount].Assembly.Location) -ErrorAction Stop
+    }
+    [AadAuthenticationFactory.MacBrokerAccount]::new(
+        $Account.Username, $Account.Environment, $Account.HomeAccountId
+    )
+}
+
+function ConvertFrom-MacBrokerResult {
+    param([Parameter(Mandatory)] $Result)
+
+    if ($Result.TokenSource -ne 'Broker' -or [string]::IsNullOrEmpty($Result.AccessToken)) {
+        throw [System.IO.InvalidDataException]::new('The macOS helper did not return a broker authentication result.')
+    }
+    $account = if ($null -ne $Result.Account) { ConvertFrom-MacBrokerAccount -Account $Result.Account } else { $null }
+    $metadata = [Microsoft.Identity.Client.AuthenticationResultMetadata]::new(
+        [Microsoft.Identity.Client.TokenSource]::Broker
+    )
+    $additionalParameters = [System.Collections.Generic.Dictionary[string, string]]::new()
+    if ($null -ne $Result.AdditionalResponseParameters) {
+        foreach ($property in $Result.AdditionalResponseParameters.PSObject.Properties) {
+            $additionalParameters.Add($property.Name, [string]$property.Value)
+        }
+    }
+    $principal = $null
+    if ($null -ne $Result.Identities) {
+        $principal = [System.Security.Claims.ClaimsPrincipal]::new()
+        foreach ($wireIdentity in $Result.Identities) {
+            $identity = [System.Security.Claims.ClaimsIdentity]::new(
+                $wireIdentity.AuthenticationType, $wireIdentity.NameClaimType, $wireIdentity.RoleClaimType
+            )
+            foreach ($wireClaim in $wireIdentity.Claims) {
+                $claim = [System.Security.Claims.Claim]::new(
+                    $wireClaim.Type, $wireClaim.Value, $wireClaim.ValueType, $wireClaim.Issuer, $wireClaim.OriginalIssuer
+                )
+                if ($null -ne $wireClaim.Properties) {
+                    foreach ($property in $wireClaim.Properties.PSObject.Properties) {
+                        $claim.Properties.Add($property.Name, [string]$property.Value)
+                    }
+                }
+                $identity.AddClaim($claim)
+            }
+            $principal.AddIdentity($identity)
+        }
+    }
+    [Microsoft.Identity.Client.AuthenticationResult]::new(
+        $Result.AccessToken,
+        [bool]$Result.IsExtendedLifeTimeToken,
+        $Result.UniqueId,
+        [DateTimeOffset]$Result.ExpiresOn,
+        [DateTimeOffset]$Result.ExtendedExpiresOn,
+        $Result.TenantId,
+        $account,
+        $Result.IdToken,
+        [string[]]$Result.Scopes,
+        [Guid]$Result.CorrelationId,
+        $Result.TokenType,
+        $metadata,
+        $principal,
+        $Result.SpaAuthCode,
+        $additionalParameters
+    )
+}
 function Get-AssemblyVersionFromPath {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -1510,6 +1641,44 @@ function Get-AssemblyVersionFromPath {
     } catch {
         return $null
     }
+}
+function Get-MacBrokerExecutablePath {
+    param([Parameter(Mandatory)] [string] $ModuleRoot)
+
+    $platform = Get-MsalBrokerPlatformConfiguration
+    if ($platform.OperatingSystem -ne 'macOS') {
+        throw [PlatformNotSupportedException]::new('The Mac broker helper can only run on macOS.')
+    }
+    $path = [Path]::Combine(
+        $ModuleRoot, 'bin', $platform.RuntimeIdentifier, 'AadAuthenticationFactory.MacBroker'
+    )
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new(
+            "The macOS broker helper is missing at '$path'. Build it with Workflow/BuildMacBroker.ps1 or reinstall the complete module.",
+            $path
+        )
+    }
+    foreach ($requiredPath in @(
+        [Path]::Combine($ModuleRoot, 'bin', 'AadAuthenticationFactory.MacBroker.dll'),
+        [Path]::Combine($PSHOME, 'libcoreclr.dylib')
+    )) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw [System.IO.FileNotFoundException]::new(
+                "The macOS broker requires the helper assembly and the calling PowerShell's .NET runtime. Missing file: '$requiredPath'.",
+                $requiredPath
+            )
+        }
+    }
+
+    # PowerShell Gallery extraction does not reliably preserve Unix executable bits.
+    & /bin/test -x $path
+    if ($LASTEXITCODE -ne 0) {
+        & /bin/chmod u+x $path
+        if ($LASTEXITCODE -ne 0) {
+            throw [System.IO.IOException]::new("Unable to set the executable permission on '$path'.")
+        }
+    }
+    return $path
 }
 function Get-MsalBrokerPlatformConfiguration {
     $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
@@ -1621,7 +1790,18 @@ function Import-MsalNativeRuntime {
 
     try {
         if ($PSEdition -eq 'Core') {
+            if ($null -eq ('MsalNativeResolver' -as [type])) {
+                $resolverPath = [Path]::Combine($ModuleRoot, 'Helpers', 'MsalNativeResolver.cs')
+                Add-Type -Path $resolverPath -ErrorAction Stop
+            }
+
+            $interopPath = [Path]::Combine($ModuleRoot, 'shared', 'netstandard2.0', 'Microsoft.Identity.Client.NativeInterop.dll')
+            Add-Type -Path $interopPath -ErrorAction Stop
             $nativeHandle = [System.Runtime.InteropServices.NativeLibrary]::Load($nativePath)
+            [MsalNativeResolver]::RegisterFor(
+                [Microsoft.Identity.Client.NativeInterop.Core].Assembly,
+                $nativePath
+            )
         }
         else {
             if ($null -eq ('Kernel32' -as [type])) {
@@ -1808,6 +1988,115 @@ function Init {
         }
 
         Write-Information "Init completed. MSAL v$msalLoadedVersion; Broker loaded: $(-not (-not ('Microsoft.Identity.Client.Broker.BrokerExtension' -as [type])))"
+    }
+}
+function Invoke-MacBroker {
+    param(
+        [Parameter(Mandatory)] $Factory,
+        [Parameter(Mandatory)] [ValidateSet('accounts', 'token')] [string] $Operation,
+        [string[]] $Scopes = @(),
+        [string] $LoginHint,
+        [string] $HomeAccountId,
+        [bool] $ForceRefresh,
+        [bool] $AllowInteractive,
+        [string] $Claims,
+        [string] $Authority,
+        [string] $SshJwk,
+        [string] $SshKeyId,
+        [Parameter(Mandatory)] [System.Threading.CancellationTokenSource] $CancellationTokenSource
+    )
+
+    $configuration = $Factory.MacBrokerConfiguration
+    $request = @{
+        Version = 1
+        Operation = $Operation
+        ClientId = $Factory.AppConfig.ClientId
+        Authority = if ([string]::IsNullOrEmpty($Authority)) { $configuration.Authority } else { $Authority }
+        Scopes = @($Scopes)
+        LoginHint = $LoginHint
+        HomeAccountId = $HomeAccountId
+        ForceRefresh = $ForceRefresh
+        AllowInteractive = $AllowInteractive
+        MultiCloud = $configuration.MultiCloud
+        ClaimsSupport = $configuration.ClaimsSupport
+        ExperimentalFeatures = $configuration.ExperimentalFeatures
+        Claims = $Claims
+        SshJwk = if ([string]::IsNullOrEmpty($SshJwk)) { $null } else { $SshJwk }
+        SshKeyId = if ([string]::IsNullOrEmpty($SshKeyId)) { $null } else { $SshKeyId }
+    }
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $configuration.ExecutablePath
+    $startInfo.ArgumentList.Add('--module')
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.Environment['AAD_AUTHENTICATION_POWERSHELL_HOME'] = $PSHOME
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $started = $false
+    try {
+        $CancellationTokenSource.Token.ThrowIfCancellationRequested()
+        $started = $process.Start()
+        if (-not $started) {
+            throw [System.IO.IOException]::new('The macOS broker helper did not start.')
+        }
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        $process.StandardInput.WriteLine(($request | ConvertTo-Json -Depth 6 -Compress))
+        $process.StandardInput.Close()
+        while (-not $process.WaitForExit(100)) {
+            $CancellationTokenSource.Token.ThrowIfCancellationRequested()
+        }
+        $output = $stdout.GetAwaiter().GetResult()
+        $errorOutput = $stderr.GetAwaiter().GetResult()
+        if ([string]::IsNullOrWhiteSpace($output)) {
+            throw [System.IO.IOException]::new(
+                "The macOS broker helper exited with code $($process.ExitCode) without a protocol response."
+            )
+        }
+        $response = $output | ConvertFrom-Json -ErrorAction Stop
+        if ($response.Version -ne 1) {
+            throw [System.IO.InvalidDataException]::new('Unsupported macOS broker response version.')
+        }
+        if ($null -ne $response.Error) {
+            $errorData = $response.Error
+            if ($errorData.InteractionRequired) {
+                $exception = [Microsoft.Identity.Client.MsalUiRequiredException]::new($errorData.Code, $errorData.Message)
+                $exception.Claims = $errorData.Claims
+            }
+            else {
+                $exception = [Microsoft.Identity.Client.MsalClientException]::new($errorData.Code, $errorData.Message)
+            }
+            if (-not [string]::IsNullOrEmpty($errorData.CorrelationId)) {
+                $exception.CorrelationId = $errorData.CorrelationId
+            }
+            throw $exception
+        }
+        if ($process.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($errorOutput)) {
+            throw [System.IO.IOException]::new(
+                "The macOS broker helper failed (exit code $($process.ExitCode)). Its diagnostic output was not logged because it may contain authentication data."
+            )
+        }
+        if ($Operation -eq 'accounts') {
+            if ($null -eq $response.Accounts) {
+                throw [System.IO.InvalidDataException]::new('The macOS broker returned no account collection.')
+            }
+            foreach ($account in $response.Accounts) {
+                ConvertFrom-MacBrokerAccount -Account $account
+            }
+        }
+        else {
+            ConvertFrom-MacBrokerResult -Result $response.Result
+        }
+    }
+    finally {
+        if ($started -and -not $process.HasExited) {
+            $process.Kill($true)
+            $process.WaitForExit()
+        }
+        $process.Dispose()
     }
 }
 function NewJwk

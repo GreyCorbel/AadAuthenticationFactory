@@ -64,7 +64,11 @@ Returns cached accounts from the named factory whose user name matches 'john'.
 
         if($factory -is [Microsoft.Identity.Client.PublicClientApplication])
         {
-            if([string]::IsNullOrEmpty($Factory.B2CPolicy))
+            if ($null -ne $Factory.PSObject.Properties['MacBrokerConfiguration'])
+            {
+                $allAccounts = @(Invoke-MacBroker -Factory $Factory -Operation accounts -CancellationTokenSource $cts)
+            }
+            elseif([string]::IsNullOrEmpty($Factory.B2CPolicy))
             {
                 $allAccounts = $Factory.GetAccountsAsync() | AwaitTask -CancellationTokenSource $cts
             }

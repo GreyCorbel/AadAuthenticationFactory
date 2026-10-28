@@ -68,7 +68,7 @@ Describe 'Factory lifecycle' {
         $retrievedFactory | Should -Be $createdFactory
     }
 
-    It 'loads the native runtime and creates a broker factory' {
+    It 'creates a broker factory using the platform backend' {
         $module = Get-Module -Name AadAuthenticationFactory
         $platform = & $module { Get-MsalBrokerPlatformConfiguration }
         $expectedPath = [System.IO.Path]::Combine(
@@ -93,9 +93,48 @@ Describe 'Factory lifecycle' {
         }
 
         $factory | Should -Not -BeNullOrEmpty
+        if ($platform.OperatingSystem -eq 'macOS') {
+            $factory.MacBrokerConfiguration.ExecutablePath | Should -Exist
+            $factory.MacBrokerConfiguration.Authority | Should -Be 'https://login.microsoftonline.com/organizations'
+            $factory.AppConfig.ClientId | Should -Be '04b07795-8ddb-461a-bbee-02f9e1bf7b46'
+            return
+        }
+
         $expectedPath | Should -Exist
         $loadedRuntime.Path | Should -Be $expectedPath
         $loadedRuntime.Handle | Should -Not -Be ([IntPtr]::Zero)
+    }
+
+    It 'preserves explicit broker client IDs and non-broker defaults' {
+        $clientId = '11111111-1111-1111-1111-111111111111'
+        $factory = New-AadAuthenticationFactory -AuthMode Broker -TenantId organizations -ClientId $clientId `
+            -Name ExplicitBrokerClientTest
+        $factory.AppConfig.ClientId | Should -Be $clientId
+        $nonBroker = New-AadAuthenticationFactory -AuthMode DeviceCode -TenantId organizations -Name NonBrokerDefaultTest
+        $nonBroker.AppConfig.ClientId | Should -Be (Get-AadDefaultClientId)
+        $nonBroker.PSObject.Properties['MacBrokerConfiguration'] | Should -BeNullOrEmpty
+    }
+
+    It 'resolves native imports when creating broker authentication parameters' -Skip:($PSEdition -ne 'Core') {
+        $factory = New-AadAuthenticationFactory `
+            -TenantId 'organizations' `
+            -AuthMode Broker `
+            -Name "PesterNativeBrokerFactory_$([Guid]::NewGuid().ToString('N'))"
+
+        $factory | Should -Not -BeNullOrEmpty
+        $module = Get-Module -Name AadAuthenticationFactory
+        & $module { param($root) Import-MsalNativeRuntime -ModuleRoot $root } $module.ModuleBase | Out-Null
+        $parameters = [Microsoft.Identity.Client.NativeInterop.AuthParameters]::new(
+            (Get-AadDefaultClientId),
+            'https://login.microsoftonline.com/organizations'
+        )
+        try {
+            $parameters.RequestedScopes = 'https://management.azure.com/.default'
+            $parameters.RequestedScopes | Should -Be 'https://management.azure.com/.default'
+        }
+        finally {
+            $parameters.Dispose()
+        }
     }
 }
 
