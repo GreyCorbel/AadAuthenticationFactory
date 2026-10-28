@@ -108,8 +108,17 @@ jobs:
     if: ${{ always() && needs.buildMacBroker.result == 'success' && (needs.integrationTests.result == 'success' || needs.integrationTests.result == 'skipped') }}
     # The type of runner that the job will run on
     runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
     env: 
         MODULE_NAME: AadAuthenticationFactory
+        AZURE_TENANT_ID: ${{ vars.TENANTINTEGRATION_TENANTID }}
+        AZURE_CLIENT_ID: ${{ vars.TENANTINTEGRATION_CLIENTID }}
+        SIGNING_ENDPOINT: https://weu.codesigning.azure.net
+        SIGNING_ACCOUNT: greycorbel
+        SIGNING_PROFILE: greycorbel-signing
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -147,33 +156,25 @@ jobs:
           -ExcludeTag integration `
           -CI
     
-    - name: Install AzureSignTool
-      shell: pwsh
-      run: |
-        dotnet tool install --global AzureSignTool
-  
-    - name: Sign files
-      shell: pwsh
-      run: |
-        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
-        try {
-            foreach ($file in $files) {
-                azuresigntool sign `
-                    -kvu ${{ vars.CODESIGNING_KEYVAULTURI }} `
-                    -kvi ${{ vars.TENANTINTEGRATION_CLIENTID }} `
-                    -kvt ${{ vars.TENANTINTEGRATION_TENANTID }} `
-                    -kvs ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }} `
-                    -kvc ${{ vars.CODESIGNING_CERTNAME }} `
-                    -tr 'http://timestamp.digicert.com' `
-                    -v "$($file.FullName)" 
-            }
-        }
-        catch {
-            Write-Host "Error: $($_.Exception)"
-            throw
-        }
-        Write-Host "Signed files summary:"
-        Get-AuthenticodeSignature -FilePath $files
+    - name: Log in to Azure with OIDC
+      uses: azure/login@v2
+      with:
+        client-id: ${{ env.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        allow-no-subscriptions: true
+
+    - name: Sign module files with Artifact Signing
+      uses: azure/artifact-signing-action@v2
+      with:
+        endpoint: ${{ env.SIGNING_ENDPOINT }}
+        signing-account-name: ${{ env.SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ env.SIGNING_PROFILE }}
+        files-folder: ${{ github.workspace }}\Module\${{ env.MODULE_NAME }}
+        files-folder-filter: ps1,ps1xml,psd1,psm1,pssc,psrc,cdxml
+        files-folder-recurse: true
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
 
     - name: Publish
       #Publish to PS Gallery
