@@ -25,6 +25,8 @@ if ($LASTEXITCODE -ne 0) {
 $packageReferences = ([xml](Get-Content -LiteralPath $dependencyProject -Raw)).
     Project.ItemGroup.PackageReference
 $targetFrameworks = @('net462', 'netstandard2.0')
+# These are always loaded from netstandard2.0, on both Desktop and Core.
+$netStandardOnlyPackages = @('Microsoft.Identity.Client.Broker', 'Microsoft.Identity.Client.NativeInterop')
 
 foreach ($targetFramework in $targetFrameworks) {
     New-Item -ItemType Directory -Path ([Path]::Combine($sharedPath, $targetFramework)) -Force | Out-Null
@@ -47,6 +49,10 @@ foreach ($packageReference in $packageReferences) {
     $copiedAssembly = $false
 
     foreach ($targetFramework in $targetFrameworks) {
+        if ($targetFramework -eq 'net462' -and $packageId -in $netStandardOnlyPackages) {
+            continue
+        }
+
         $assemblyPath = [Path]::Combine($packageFolder, 'lib', $targetFramework, "$packageId.dll")
         if (Test-Path -LiteralPath $assemblyPath -PathType Leaf) {
             Copy-Item -LiteralPath $assemblyPath -Destination ([Path]::Combine($sharedPath, $targetFramework)) -Force
