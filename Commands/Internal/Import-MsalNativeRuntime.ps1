@@ -25,7 +25,18 @@ function Import-MsalNativeRuntime {
 
     try {
         if ($PSEdition -eq 'Core') {
+            if ($null -eq ('MsalNativeResolver' -as [type])) {
+                $resolverPath = [Path]::Combine($ModuleRoot, 'Helpers', 'MsalNativeResolver.cs')
+                Add-Type -Path $resolverPath -ErrorAction Stop
+            }
+
+            $interopPath = [Path]::Combine($ModuleRoot, 'shared', 'netstandard2.0', 'Microsoft.Identity.Client.NativeInterop.dll')
+            Add-Type -Path $interopPath -ErrorAction Stop
             $nativeHandle = [System.Runtime.InteropServices.NativeLibrary]::Load($nativePath)
+            [MsalNativeResolver]::RegisterFor(
+                [Microsoft.Identity.Client.NativeInterop.Core].Assembly,
+                $nativePath
+            )
         }
         else {
             if ($null -eq ('Kernel32' -as [type])) {

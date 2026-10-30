@@ -8,6 +8,8 @@ function Get-AadDefaultClientId
     Returns the default client ID used when New-AadAuthenticationFactory is
     called without an explicit ClientId. The configured default is the Azure
     PowerShell public client application ID.
+    macOS Broker/WAM factories use a separate broker-compatible default client;
+    this command continues to return the general default.
 
 .OUTPUTS
     System.String

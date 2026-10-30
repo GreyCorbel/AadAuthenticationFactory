@@ -21,17 +21,114 @@ on:
         default: true
 
 jobs:
-  # This workflow contains a single job called "publishToGallery"
+  buildMacBroker:
+    name: Build macOS broker helpers
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
+    - name: Restore module dependencies
+      shell: pwsh
+      run: |
+        & ./Workflow/SetupPackages.ps1 -RootPath $env:GITHUB_WORKSPACE
+    - name: Publish both macOS architectures
+      shell: pwsh
+      run: |
+        & ./Workflow/BuildMacBroker.ps1 -RootPath $env:GITHUB_WORKSPACE
+        $env:AAD_AUTHENTICATION_POWERSHELL_HOME = $PSHOME
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
+        & "./Module/AadAuthenticationFactory/bin/osx-$architecture/AadAuthenticationFactory.MacBroker" --probe
+        if ($LASTEXITCODE -ne 0) { throw 'macOS broker native probe failed.' }
+    - uses: actions/upload-artifact@v7
+      with:
+        name: macos-broker-helpers
+        path: Module/AadAuthenticationFactory/bin/
+        if-no-files-found: error
+
+  integrationTests:
+    name: Confidential client integration
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.runTests }}
+    runs-on: ubuntu-latest
+    environment: confidential-client-integration
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MODULE_NAME: AadAuthenticationFactory
+      AAD_TEST_TENANT_ID: ${{ secrets.AAD_TEST_TENANT_ID }}
+      AAD_TEST_SCOPE: ${{ secrets.AAD_TEST_SCOPE }}
+      AAD_TEST_CLIENT_ID: ${{ secrets.AAD_TEST_CLIENT_ID }}
+      AAD_TEST_CLIENT_SECRET: ${{ secrets.AAD_TEST_CLIENT_SECRET }}
+      AAD_TEST_EXPECTED_AUD: ${{ secrets.AAD_TEST_EXPECTED_AUD }}
+      AAD_TEST_OIDC_AUDIENCE: ${{ secrets.AAD_TEST_OIDC_AUDIENCE }}
+      AAD_TEST_OIDC_SUBJECT: ${{ secrets.AAD_TEST_OIDC_SUBJECT }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up .NET SDK
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Setup Packages
+      shell: pwsh
+      run: |
+        &"$env:GITHUB_WORKSPACE\Workflow\SetupPackages.ps1" -RootPath "$env:GITHUB_WORKSPACE"
+
+    - name: Build Module
+      uses: GreyCorbel/PsModuleActions/build-module@v1
+      with:
+        module-name: ${{ env.MODULE_NAME }}
+
+    - name: Run integration tests
+      shell: pwsh
+      run: |
+        &"$env:GITHUB_WORKSPACE\Workflow\RunTests.ps1" `
+          -RootPath "$env:GITHUB_WORKSPACE" `
+          -ModuleName $env:MODULE_NAME `
+          -Tag integration `
+          -RequireIntegrationConfiguration `
+          -CI
+
+    - name: Upload integration test results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: publish-integration-test-results
+        path: TestResults.xml
+        if-no-files-found: warn
+
   publishToGallery:
+    needs: [integrationTests, buildMacBroker]
+    if: ${{ always() && needs.buildMacBroker.result == 'success' && (needs.integrationTests.result == 'success' || needs.integrationTests.result == 'skipped') }}
     # The type of runner that the job will run on
     runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
     env: 
         MODULE_NAME: AadAuthenticationFactory
+        AZURE_TENANT_ID: ${{ vars.TENANTINTEGRATION_TENANTID }}
+        AZURE_CLIENT_ID: ${{ vars.TENANTINTEGRATION_CLIENTID }}
+        SIGNING_ENDPOINT: https://weu.codesigning.azure.net
+        SIGNING_ACCOUNT: greycorbel
+        SIGNING_PROFILE: greycorbel-signing
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v7
+    - name: Include macOS broker helpers
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-broker-helpers
+        path: Module/AadAuthenticationFactory/bin/
     - name: Set up .NET SDK
       uses: actions/setup-dotnet@v6
       with:
@@ -51,43 +148,33 @@ jobs:
     - name: Run Pester tests
       shell: pwsh
       if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.runTests }}
-      env:
-        AAD_TEST_TENANT_ID: ${{ vars.AAD_TEST_TENANT_ID }}
-        AAD_TEST_SCOPE: ${{ vars.AAD_TEST_SCOPE }}
-        AAD_TEST_CLIENT_ID: ${{ vars.AAD_TEST_CLIENT_ID }}
-        AAD_TEST_EXPECTED_AUD: ${{ vars.AAD_TEST_EXPECTED_AUD }}
-        AAD_TEST_CLIENT_SECRET: ${{ secrets.AAD_TEST_CLIENT_SECRET }}
       run: |
         "Running module tests"
-        &"$env:GITHUB_WORKSPACE\Workflow\RunTests.ps1" -RootPath "$env:GITHUB_WORKSPACE" -ModuleName $env:MODULE_NAME -CI
+        &"$env:GITHUB_WORKSPACE\Workflow\RunTests.ps1" `
+          -RootPath "$env:GITHUB_WORKSPACE" `
+          -ModuleName $env:MODULE_NAME `
+          -ExcludeTag integration `
+          -CI
     
-    - name: Install AzureSignTool
-      shell: pwsh
-      run: |
-        dotnet tool install --global AzureSignTool
-  
-    - name: Sign files
-      shell: pwsh
-      run: |
-        $files = Get-ChildItem "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -File -Recurse -Include *.ps1, *.ps1xml, *.psd1, *.psm1, *.pssc, *.psrc, *.cdxml
-        try {
-            foreach ($file in $files) {
-                azuresigntool sign `
-                    -kvu ${{ vars.CODESIGNING_KEYVAULTURI }} `
-                    -kvi ${{ vars.TENANTINTEGRATION_CLIENTID }} `
-                    -kvt ${{ vars.TENANTINTEGRATION_TENANTID }} `
-                    -kvs ${{ secrets.TENANTINTEGRATION_CLIENTSECRET }} `
-                    -kvc ${{ vars.CODESIGNING_CERTNAME }} `
-                    -tr 'http://timestamp.digicert.com' `
-                    -v "$($file.FullName)" 
-            }
-        }
-        catch {
-            Write-Host "Error: $($_.Exception)"
-            throw
-        }
-        Write-Host "Signed files summary:"
-        Get-AuthenticodeSignature -FilePath $files
+    - name: Log in to Azure with OIDC
+      uses: azure/login@v2
+      with:
+        client-id: ${{ env.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        allow-no-subscriptions: true
+
+    - name: Sign module files with Artifact Signing
+      uses: azure/artifact-signing-action@v2
+      with:
+        endpoint: ${{ env.SIGNING_ENDPOINT }}
+        signing-account-name: ${{ env.SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ env.SIGNING_PROFILE }}
+        files-folder: ${{ github.workspace }}\Module\${{ env.MODULE_NAME }}
+        files-folder-filter: ps1,ps1xml,psd1,psm1,pssc,psrc,cdxml
+        files-folder-recurse: true
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
 
     - name: Publish
       #Publish to PS Gallery

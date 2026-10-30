@@ -1,12 +1,40 @@
 function Get-MsalBrokerPlatformConfiguration {
-    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+    $runtimeInfoType = 'System.Runtime.InteropServices.RuntimeInformation' -as [type]
+    $hasRuntimeInfo = $null -ne $runtimeInfoType -and $null -ne $runtimeInfoType.GetProperty('ProcessArchitecture')
 
-    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    if ($hasRuntimeInfo) {
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+        $isWindowsOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
+        $isLinuxOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)
+        $isMacOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)
+        $osDescription = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+    }
+    else {
+        # Windows PowerShell on older .NET Framework: always Windows
+        $isWindowsOS = $true
+        $isLinuxOS = $false
+        $isMacOS = $false
+        $osDescription = [Environment]::OSVersion.VersionString
+        $architecture = switch ($env:PROCESSOR_ARCHITECTURE) {
+            'AMD64' { 'X64' }
+            'ARM64' { 'Arm64' }
+            'x86'   { 'X86' }
+            default { $env:PROCESSOR_ARCHITECTURE }
+        }
+    }
+
+    if ($isWindowsOS) {
         $runtime = switch ($architecture) {
             'X64'   { @{ Rid = 'win-x64'; NativeLibrary = 'msalruntime.dll' } }
             'X86'   { @{ Rid = 'win-x86'; NativeLibrary = 'msalruntime_x86.dll' } }
             'Arm64' { @{ Rid = 'win-arm64'; NativeLibrary = 'msalruntime_arm64.dll' } }
-            default { $null }
+            default { 
+                if([Environment]::Is64BitOperatingSystem) {
+                    @{ Rid = 'win-x64'; NativeLibrary = 'msalruntime.dll' }
+                } else {
+                    $null 
+                }
+            }
         }
 
         if ($null -eq $runtime) {
@@ -28,7 +56,7 @@ function Get-MsalBrokerPlatformConfiguration {
         }
     }
 
-    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) {
+    if ($isLinuxOS) {
         if ($architecture -ne 'X64') {
             throw [PlatformNotSupportedException]::new(
                 "MSAL broker authentication is not supported on Linux architecture '$architecture' because the bundled native runtime only supports X64."
@@ -48,7 +76,7 @@ function Get-MsalBrokerPlatformConfiguration {
         }
     }
 
-    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+    if ($isMacOS) {
         $runtime = switch ($architecture) {
             'X64'   { @{ Rid = 'osx-x64'; NativeLibrary = 'msalruntime.dylib' } }
             'Arm64' { @{ Rid = 'osx-arm64'; NativeLibrary = 'msalruntime_arm64.dylib' } }
@@ -75,6 +103,6 @@ function Get-MsalBrokerPlatformConfiguration {
     }
 
     throw [PlatformNotSupportedException]::new(
-        "MSAL broker authentication is not supported on operating system '$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription)'."
+        "MSAL broker authentication is not supported on operating system '$osDescription'."
     )
 }

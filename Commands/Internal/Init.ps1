@@ -70,7 +70,7 @@ function Init {
         else {
             # Windows PowerShell 5.1: use net462
             $sharedDir = [Path]::Combine($moduleRoot, 'shared', 'net462')
-            $brokerDir = [Path]::Combine($moduleRoot, 'shared', 'net462')
+            $brokerDir = [Path]::Combine($moduleRoot, 'shared', 'netstandard2.0')
         }
 
         $sharedMsalPath = [Path]::Combine($sharedDir, 'Microsoft.Identity.Client.dll')
