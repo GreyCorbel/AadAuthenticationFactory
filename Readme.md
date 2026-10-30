@@ -1,20 +1,48 @@
 # AadAuthenticationFactory - Entra ID token provider
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](./LICENSE.md)
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](./LICENSE)
 [![PowerShell Desktop | Core](https://img.shields.io/badge/PowerShell-Desktop%20|%20Core%207.4+%20-blue.svg?logo=PowerShell&style=plastic)](#)
 [![Platform Windows | Mac | Linux](https://img.shields.io/badge/Platform-Windows%20|%20Mac%20|%20Linux%20%20-808080.svg?logo=Amazon%20EC2&style=plastic)](#)
 
-This module provides unified experience for getting and using tokens from Entra ID authentication platform. Experience covers this authentication scenarios:
-  - **Interactive authentication with Public client flow and Delegated permissions**. Uses standard MSAL implementation of Public flow with Browser based Interactive authentication, Device code authentication, Resource Owner credentials, Windows integrated authentication (supports ADFS-federated tenants) and WAM (authentication with Windows broker)
-  - **Non-interactive authentication with Confidential client flow and Application permissions**. Uses standard MSAL implementation of Confidential client with authentication via Client Secret of via X.509 certificate or with Federated credentials (Workload authentication scenario)
-  - **Non-Interactive authentication via Azure Managed Identity**, usable on Azure VMs, Azure App Services, Azure Functions, Automation accounts and Arc enabled servers, or other platforms that support Azure Managed identity. Supports both System Managed Identity or User Managed Identity.
+This PowerShell module wraps MSAL and Azure Identity authentication in reusable factories. It targets Windows PowerShell 5.1 and PowerShell 7.4 or later, and is tested on Windows, macOS, and Linux.
 
-Module supports standard AAD tenants as well as AAD B2C tenants. Module has been tested on Windows (PS Desktop and Core), MacOS and Linux.
+### Authentication flows
 
-**Obsolete flow:** The Resource Owner Password flow is obsolete and support for it will be removed in the next release because Microsoft's initiative to enforce multifactor authentication is incompatible with password-only sign-in. Use an interactive, device code, broker, confidential client, or managed identity flow instead.
+|Flow|Factory configuration|Behavior and limits|
+|:---|:---|:---|
+|Delegated public client|`-AuthMode Interactive`, `DeviceCode`, `WIA`, or `Broker` (`WAM` is an alias)|Interactive and device-code acquisition try the cached account silently first. WIA uses Windows integrated authentication and is Windows-only. Broker availability depends on the platform and architecture below.|
+|Confidential client|`-ClientSecret`, `-X509Certificate`, or `-Assertion`|Acquires application tokens. Pass `-UserToken` to `Get-AadToken` to acquire a token on behalf of that user.|
+|Managed identity|`-UseManagedIdentity`|Uses a system-assigned identity by default; set `-ClientId` to select a user-assigned identity. Availability depends on the hosting environment.|
+|Resource owner password (ROPC)|`-ResourceOwnerCredential`|Obsolete and retained for compatibility. Password-only authentication is incompatible with many MFA and Conditional Access requirements; do not use for new integrations.|
 
-_Note_: Some authentication methods are not available in all scenarios (e.g. Windows integrated authentication only works on Windows).
+`TenantId`, `DefaultScopes`, and optional factory `Name` configure the factory. `Get-AadToken` can override scopes, force refresh, process WWW-Authenticate challenges, and return an Authorization-header hashtable. Supported public-client flows can request an SSH certificate proof-of-possession token with `-SshKeyLength` (2048, 3072, or 4096 bits). Multicloud and claims-request support are available for public-client factories. B2C policies are supported for non-macOS-broker flows; macOS broker factories reject B2C policies and an explicit proxy.
 
-Broker authentication supports Windows x64, x86, and ARM64; macOS x64 and ARM64; and Linux x64. Linux ARM64 is not supported because the MSAL native runtime package does not currently include that runtime. macOS broker authentication requires an enrolled device with Company Portal, uses the unsigned-script redirect URI `msauth.com.msauth.unsignedapp://auth`, and interactive calls must run on the main thread.
+Broker authentication supports Windows x64, x86, and ARM64; macOS x64 and ARM64; and Linux x64. Linux ARM64 is not supported because the bundled MSAL native runtime has no Linux ARM64 asset. On Linux, broker authentication also requires the WebKitGTK 4.1 runtime (`libwebkit2gtk-4.1-0` on Ubuntu). macOS broker authentication requires an enrolled device with Company Portal, uses the unsigned-script redirect URI `msauth.com.msauth.unsignedapp://auth`, and interactive calls must run on the main thread.
+
+### Install and develop
+
+Install the published prerelease from PowerShell Gallery with:
+
+```powershell
+Install-Module AadAuthenticationFactory -AllowPrerelease
+Import-Module AadAuthenticationFactory
+```
+
+To build from a checkout, restore the pinned MSAL dependencies and generate the module. Build the macOS launchers on macOS only:
+
+```powershell
+./Workflow/SetupPackages.ps1 -RootPath .
+./Workflow/BuildModule.ps1 -RootPath . -ModuleName AadAuthenticationFactory
+# macOS only; Xcode Command Line Tools and a .NET 8 SDK or newer are required.
+./Workflow/BuildMacBroker.ps1 -RootPath .
+```
+
+Run the unit and platform tests with Pester 5.5 or later:
+
+```powershell
+./Workflow/RunTests.ps1 -RootPath . -ModuleName AadAuthenticationFactory -ExcludeTag integration
+```
+
+Confidential-client integration tests are tagged `integration` and need the tenant, client, scope, and expected-token settings described in `.github/workflows/Test-AadAuthenticationFactory.yml`; `-RequireIntegrationConfiguration` makes missing settings an error.
 
 On PowerShell Core, the module resolves MSAL broker native imports directly from its bundled `runtimes/<rid>/native` directory. No global native-library search path changes or copies into the PowerShell installation are required.
 
@@ -44,8 +72,10 @@ the PowerShell process architecture, including under Rosetta.
 
 This requires a complete PowerShell 7.4+ installation with its bundled .NET 8+
 runtime, on macOS 12 or later (subject to the installed PowerShell's own OS
-requirements). Users need no .NET SDK or separate runtime. For local development,
-build on macOS with Xcode Command Line Tools and a .NET 8 SDK (or a newer SDK
+requirements). Users need no .NET SDK or separate runtime. For broker authentication to work on macOS, 
+machine has to be onboarded to Intune, and Intune has to publish SSO extension to machine.
+
+For local development, build on macOS with Xcode Command Line Tools and a .NET 8 SDK (or a newer SDK
 supporting .NET 8):
 
 ```powershell
@@ -158,15 +188,15 @@ Module comes with commands:
 
 |Command|Usage|
 |:------|:----|
-|New-AadAuthenticationFactory|Creates factory responsible for issuing of AAD tokens, using specified authentication flow|
-|Get-AadAuthenticationFactory|Returns instance of factory specified by name (or null if factory with given name was not created) or all factories created in current sesison|
-|Get-AadToken|Tells the factory to create a token. Factory returns cached token, if available, and takes care of token renewals silently whenever possible, after tokens expire|
-|Test-AadToken|Parses Access token or Id token and validates it against Entra ID published keys. Provides PowerShell way of showing token content as available in http://jwt.ms|
-|Get-AadDefaultClientId|Returns default client id used by module when client id not specified in New-AadAuthenticationFactory command|
-|Get-AadAccount|Returns specified account or all accounts cached in specified instance of factory|
+|New-AadAuthenticationFactory|Creates a reusable public-client, confidential-client, ROPC, or managed-identity factory. Factories can be named and retrieved later.|
+|Get-AadAuthenticationFactory|Returns the most recently created factory by default, a named factory with `-Name`, or all session factories with `-All`.|
+|Get-AadToken|Acquires a token using a factory. Supports delegated, application, on-behalf-of, and managed-identity requests; returns an MSAL `AuthenticationResult` or, with `-AsHashTable`, an Authorization header.|
+|Get-AadAccount|Lists accounts cached by a public-client factory. `-UserName` filters usernames using PowerShell's `-match` operator. macOS broker account discovery uses the helper process.|
+|Get-AadDefaultClientId|Returns the general Azure PowerShell public-client ID used when `-ClientId` is omitted. macOS Broker/WAM uses a separate broker-compatible default; explicit IDs are preserved.|
+|Test-AadToken|Parses a JWT and validates its signature against the issuer's published signing keys. Accepts a raw JWT, `AuthenticationResult`, Authorization hashtable, or token-bearing object; `-PayloadOnly` returns claims without the validation result. SSH certificate tokens are not JWTs and are not supported.|
 
 Module is usable in two ways:
 - as standalone module to provide Azure tokens ad-hoc or in scripts
-- by other modules to provide instant Azure authentication services without the need to implement them - just make dependency on AadAuthenticationFactory module in other module and use it to get tokens for resources as you need. This is demonstrated by [CosmosLite module](https://github.com/jformacek/CosmosLite) and [ExoHelper module](https://github.com/greycorbel/ExoHelper)
+- as a dependency of other PowerShell modules, which can create factories and request tokens for their target resources. Example consumers include [CosmosLite](https://github.com/jformacek/CosmosLite) and [ExoHelper](https://github.com/greycorbel/ExoHelper).
 
-For documentation and code samples, see  [Wiki pages](https://github.com/greycorbel/AadAuthenticationFactory/wiki)
+For further documentation and code samples, see the [project wiki](https://github.com/GreyCorbel/AadAuthenticationFactory/wiki).
