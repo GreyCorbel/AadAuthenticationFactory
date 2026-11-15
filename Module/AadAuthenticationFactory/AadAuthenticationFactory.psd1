@@ -89,7 +89,7 @@ ModuleList = @()
 FileList = @(
     'AadAuthenticationFactory.psm1',
     'AadAuthenticationFactory.psd1',
-    'AadAuthenticationFactory.format.ps1xml'
+    'AadAuthenticationFactory.format.ps1xml',
     'Helpers\Kernel32.cs',
     'Helpers\GcMsalHttpClientFactory.cs',
     'Helpers\DeviceCodeHandler.cs',
