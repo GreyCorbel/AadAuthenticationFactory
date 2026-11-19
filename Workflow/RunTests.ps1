@@ -66,11 +66,11 @@ $configuration.Run.Path = $testsPath
 $configuration.Run.PassThru = $true
 $configuration.Output.Verbosity = 'Detailed'
 
-if (@($Tag).Count -gt 0) {
+if ($null -ne $Tag -and $Tag.Length -gt 0) {
     $configuration.Filter.Tag = $Tag
 }
 
-if (@($ExcludeTag).Count -gt 0) {
+if ($null -ne $ExcludeTag -and $ExcludeTag.Length -gt 0) {
     $configuration.Filter.ExcludeTag = $ExcludeTag
 }
 
