@@ -48,6 +48,13 @@ $pester = Get-Module -ListAvailable -Name Pester |
     Select-Object -First 1
 
 if ($null -eq $pester -or $pester.Version -lt $minimumPesterVersion) {
+    if ($PSEdition -eq 'Desktop') {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null
+        }
+    }
+
     Write-Host "Installing Pester $minimumPesterVersion or newer"
     Install-Module -Name Pester -Scope CurrentUser -Force -MinimumVersion $minimumPesterVersion -SkipPublisherCheck
 }

@@ -42,6 +42,11 @@ Run the unit and platform tests with Pester 5.5 or later:
 ./Workflow/RunTests.ps1 -RootPath . -ModuleName AadAuthenticationFactory -ExcludeTag integration
 ```
 
+On Windows, run this command in both `pwsh` (Core) and `powershell.exe`
+(Windows PowerShell 5.1 Desktop), using fresh sessions. CI runs the same suite
+separately in both editions, including module import, edition-specific assembly
+loading, factory creation, and broker native imports. Linux and macOS use Core.
+
 Confidential-client integration tests are tagged `integration` and need the tenant, client, scope, and expected-token settings described in `.github/workflows/Test-AadAuthenticationFactory.yml`; `-RequireIntegrationConfiguration` makes missing settings an error.
 
 On PowerShell Core, the module resolves MSAL broker native imports directly from its bundled `runtimes/<rid>/native` directory. No global native-library search path changes or copies into the PowerShell installation are required.

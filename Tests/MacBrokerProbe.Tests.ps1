@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 
 Describe 'Mac broker probe diagnostics' -Skip:(
+    $PSEdition -ne 'Core' -or
     -not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
         [System.Runtime.InteropServices.OSPlatform]::OSX
     )

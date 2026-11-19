@@ -177,7 +177,7 @@ Describe 'Factory lifecycle' {
         $nonBroker.PSObject.Properties['MacBrokerConfiguration'] | Should -BeNullOrEmpty
     }
 
-    It 'resolves native imports when creating broker authentication parameters' -Skip:($PSEdition -ne 'Core') {
+    It 'resolves native imports when creating broker authentication parameters' {
         $factory = New-AadAuthenticationFactory `
             -TenantId 'organizations' `
             -AuthMode Broker `

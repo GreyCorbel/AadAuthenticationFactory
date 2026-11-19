@@ -12,15 +12,24 @@ permissions:
 
 jobs:
   test:
-    name: PowerShell 7 on ${{ matrix.os }}
+    name: PowerShell ${{ matrix.edition }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-latest
-          - ubuntu-latest
-          - macos-latest
+        include:
+          - os: windows-latest
+            edition: Core
+            shell: pwsh
+          - os: windows-latest
+            edition: Desktop
+            shell: powershell
+          - os: ubuntu-latest
+            edition: Core
+            shell: pwsh
+          - os: macos-latest
+            edition: Core
+            shell: pwsh
 
     steps:
       - name: Check out repository
@@ -57,8 +66,11 @@ jobs:
           & ./Workflow/BuildMacBroker.ps1 -RootPath $env:GITHUB_WORKSPACE
 
       - name: Run Pester tests
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
+          if ($PSEdition -ne '${{ matrix.edition }}') {
+            throw "Expected PowerShell ${{ matrix.edition }}, got $PSEdition."
+          }
           $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
           & $runTests -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory -ExcludeTag integration -CI
 
@@ -66,7 +78,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pester-results-${{ matrix.os }}
+          name: pester-results-${{ matrix.os }}-${{ matrix.edition }}
           path: TestResults.xml
           if-no-files-found: warn
 
