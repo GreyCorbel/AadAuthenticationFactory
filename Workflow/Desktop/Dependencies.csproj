@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.78.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.78.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Abstractions" Version="8.14.0" />
+    <PackageReference Include="Microsoft.Identity.Client.NativeInterop" Version="0.19.4" />
+  </ItemGroup>
+</Project>

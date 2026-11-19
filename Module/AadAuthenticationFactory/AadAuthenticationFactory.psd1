@@ -12,7 +12,7 @@
 RootModule = '.\AadAuthenticationFactory.psm1'
 
 # Version number of this module.
-ModuleVersion = '4.0.0'
+ModuleVersion = '4.0.1'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Core', 'Desktop')
@@ -110,7 +110,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/GreyCorbel/AadAuthenticationFactory'
 
         # Prerelease string of this module
-        #Prerelease = 'beta6'
+        Prerelease = 'beta1'
 
         # Flag to indicate whether the module requires explicit user acceptance for install/update/save
         RequireLicenseAcceptance = $false

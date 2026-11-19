@@ -42,9 +42,23 @@ Run the unit and platform tests with Pester 5.5 or later:
 ./Workflow/RunTests.ps1 -RootPath . -ModuleName AadAuthenticationFactory -ExcludeTag integration
 ```
 
+On Windows, run this command in both `pwsh` (Core) and `powershell.exe`
+(Windows PowerShell 5.1 Desktop), using fresh sessions. CI runs the same suite
+separately in both editions, including module import, edition-specific assembly
+loading, factory creation, and broker native imports. Linux and macOS use Core.
+
 Confidential-client integration tests are tagged `integration` and need the tenant, client, scope, and expected-token settings described in `.github/workflows/Test-AadAuthenticationFactory.yml`; `-RequireIntegrationConfiguration` makes missing settings an error.
 
 On PowerShell Core, the module resolves MSAL broker native imports directly from its bundled `runtimes/<rid>/native` directory. No global native-library search path changes or copies into the PowerShell installation are required.
+
+Windows PowerShell Desktop restores its four identity packages from
+`Workflow/Desktop/Dependencies.csproj`: Microsoft.Identity.Client and
+Microsoft.Identity.Client.Broker 4.78.0, Microsoft.IdentityModel.Abstractions
+8.14.0, and Microsoft.Identity.Client.NativeInterop 0.19.4. These managed
+assemblies are bundled in `shared/net462`, including the netstandard2.0 broker
+and interop assemblies. PowerShell Core retains its existing package versions
+in `Workflow/Core/Dependencies.csproj` and assemblies in `shared/netstandard2.0`.
+Both editions continue to use the common `runtimes/<rid>/native` binaries.
 
 ### macOS broker helper
 

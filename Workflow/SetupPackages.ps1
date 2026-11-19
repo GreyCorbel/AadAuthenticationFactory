@@ -8,24 +8,30 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$dependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Dependencies.csproj')
+$dependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Core', 'Dependencies.csproj')
+$desktopDependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Desktop', 'Dependencies.csproj')
 $packagesDir = [Path]::Combine($RootPath, 'packages')
 $modulePath = [Path]::Combine($RootPath, 'Module', 'AadAuthenticationFactory')
 $sharedPath = [Path]::Combine($modulePath, 'shared')
 
-if (-not (Test-Path -LiteralPath $dependencyProject -PathType Leaf)) {
-    throw "Dependency project not found at '$dependencyProject'."
-}
+foreach ($project in @($dependencyProject, $desktopDependencyProject)) {
+    if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
+        throw "Dependency project not found at '$project'."
+    }
 
-& dotnet restore $dependencyProject --packages $packagesDir --nologo
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet restore failed with exit code $LASTEXITCODE."
+    & dotnet restore $project --packages $packagesDir --nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet restore for '$project' failed with exit code $LASTEXITCODE."
+    }
 }
 
 $packageReferences = ([xml](Get-Content -LiteralPath $dependencyProject -Raw)).
     Project.ItemGroup.PackageReference
+$desktopPackageReferences = ([xml](Get-Content -LiteralPath $desktopDependencyProject -Raw)).
+    Project.ItemGroup.PackageReference
+$desktopPackageIds = @($desktopPackageReferences | ForEach-Object { [string]$_.Include })
 $targetFrameworks = @('net462', 'netstandard2.0')
-# These are always loaded from netstandard2.0, on both Desktop and Core.
+# These packages only ship netstandard2.0 managed assemblies.
 $netStandardOnlyPackages = @('Microsoft.Identity.Client.Broker', 'Microsoft.Identity.Client.NativeInterop')
 
 foreach ($targetFramework in $targetFrameworks) {
@@ -49,7 +55,7 @@ foreach ($packageReference in $packageReferences) {
     $copiedAssembly = $false
 
     foreach ($targetFramework in $targetFrameworks) {
-        if ($targetFramework -eq 'net462' -and $packageId -in $netStandardOnlyPackages) {
+        if ($targetFramework -eq 'net462' -and $packageId -in $desktopPackageIds) {
             continue
         }
 
@@ -64,6 +70,30 @@ foreach ($packageReference in $packageReferences) {
     if (-not $copiedAssembly) {
         throw "Package '$packageId' version '$packageVersion' does not contain a supported module assembly."
     }
+}
+
+foreach ($packageReference in $desktopPackageReferences) {
+    $packageId = [string]$packageReference.Include
+    $packageVersion = [string]$packageReference.Version
+    $assemblyFramework = 'net462'
+    if ($packageId -in $netStandardOnlyPackages) {
+        $assemblyFramework = 'netstandard2.0'
+    }
+
+    $assemblyPath = [Path]::Combine(
+        $packagesDir,
+        $packageId.ToLowerInvariant(),
+        $packageVersion.ToLowerInvariant(),
+        'lib',
+        $assemblyFramework,
+        "$packageId.dll"
+    )
+    if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+        throw "Desktop package '$packageId' version '$packageVersion' assembly was not found at '$assemblyPath'."
+    }
+
+    Copy-Item -LiteralPath $assemblyPath -Destination ([Path]::Combine($sharedPath, 'net462')) -Force
+    Write-Host "Processing Desktop: $packageId - $packageVersion ($assemblyFramework)"
 }
 
 $nativeInteropReference = $packageReferences |

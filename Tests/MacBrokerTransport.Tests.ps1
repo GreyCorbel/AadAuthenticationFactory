@@ -5,6 +5,7 @@ BeforeDiscovery {
 }
 
 Describe 'Mac broker process transport' -Skip:(
+    $PSEdition -ne 'Core' -or
     -not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
         [System.Runtime.InteropServices.OSPlatform]::OSX
     )
