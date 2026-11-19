@@ -1688,14 +1688,14 @@ function Get-MsalBrokerPlatformConfiguration {
         $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
         $isWindowsOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
         $isLinuxOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)
-        $isMacOS = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)
+        $isMacOSPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)
         $osDescription = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
     }
     else {
         # Windows PowerShell on older .NET Framework: always Windows
         $isWindowsOS = $true
         $isLinuxOS = $false
-        $isMacOS = $false
+        $isMacOSPlatform = $false
         $osDescription = [Environment]::OSVersion.VersionString
         $architecture = switch ($env:PROCESSOR_ARCHITECTURE) {
             'AMD64' { 'X64' }
@@ -1758,7 +1758,7 @@ function Get-MsalBrokerPlatformConfiguration {
         }
     }
 
-    if ($isMacOS) {
+    if ($isMacOSPlatform) {
         $runtime = switch ($architecture) {
             'X64'   { @{ Rid = 'osx-x64'; NativeLibrary = 'msalruntime.dylib' } }
             'Arm64' { @{ Rid = 'osx-arm64'; NativeLibrary = 'msalruntime_arm64.dylib' } }
