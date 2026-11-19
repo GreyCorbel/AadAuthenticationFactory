@@ -54,13 +54,13 @@ jobs:
       - name: Restore module dependencies
         shell: pwsh
         run: |
-          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'SetupPackages.ps1'
+          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow/SetupPackages.ps1'
           & $setupPackages -RootPath $env:GITHUB_WORKSPACE
 
       - name: Build module
         shell: pwsh
         run: |
-          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'BuildModule.ps1'
+          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow/BuildModule.ps1'
           & $buildModule -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory
 
       - name: Build macOS broker helpers
@@ -74,7 +74,7 @@ jobs:
           if ($PSEdition -ne '${{ matrix.edition }}') {
             throw "Expected PowerShell ${{ matrix.edition }}, got $PSEdition."
           }
-          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
+          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow/RunTests.ps1'
           & $runTests -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory -ExcludeTag integration -CI
 
       - name: Upload test results
@@ -114,19 +114,19 @@ jobs:
       - name: Restore module dependencies
         shell: pwsh
         run: |
-          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'SetupPackages.ps1'
+          $setupPackages = Join-Path $env:GITHUB_WORKSPACE 'Workflow/SetupPackages.ps1'
           & $setupPackages -RootPath $env:GITHUB_WORKSPACE
 
       - name: Build module
         shell: pwsh
         run: |
-          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'BuildModule.ps1'
+          $buildModule = Join-Path $env:GITHUB_WORKSPACE 'Workflow/BuildModule.ps1'
           & $buildModule -RootPath $env:GITHUB_WORKSPACE -ModuleName AadAuthenticationFactory
 
       - name: Run confidential client integration test
         shell: pwsh
         run: |
-          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow' 'RunTests.ps1'
+          $runTests = Join-Path $env:GITHUB_WORKSPACE 'Workflow/RunTests.ps1'
           & $runTests `
             -RootPath $env:GITHUB_WORKSPACE `
             -ModuleName AadAuthenticationFactory `
