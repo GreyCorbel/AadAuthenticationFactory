@@ -52,7 +52,7 @@ Microsoft.Identity.Client.Broker 4.78.0, Microsoft.IdentityModel.Abstractions
 8.14.0, and Microsoft.Identity.Client.NativeInterop 0.19.4. These managed
 assemblies are bundled in `shared/net462`, including the netstandard2.0 broker
 and interop assemblies. PowerShell Core retains its existing package versions
-in `Workflow/Dependencies.csproj` and assemblies in `shared/netstandard2.0`.
+in `Workflow/Core/Dependencies.csproj` and assemblies in `shared/netstandard2.0`.
 Both editions continue to use the common `runtimes/<rid>/native` binaries.
 
 ### macOS broker helper

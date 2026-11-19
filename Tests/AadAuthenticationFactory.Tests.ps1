@@ -60,7 +60,7 @@ Describe 'Edition-specific identity packages' {
             'Microsoft.Identity.Client.NativeInterop'
         )
         foreach ($edition in @('Core', 'Desktop')) {
-            $projectPath = Join-Path $repoRoot 'Workflow/Dependencies.csproj'
+            $projectPath = Join-Path $repoRoot 'Workflow/Core/Dependencies.csproj'
             $destinationFramework = 'netstandard2.0'
             if ($edition -eq 'Desktop') {
                 $projectPath = Join-Path $repoRoot 'Workflow/Desktop/Dependencies.csproj'

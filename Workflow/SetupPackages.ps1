@@ -8,7 +8,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$dependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Dependencies.csproj')
+$dependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Core', 'Dependencies.csproj')
 $desktopDependencyProject = [Path]::Combine($RootPath, 'Workflow', 'Desktop', 'Dependencies.csproj')
 $packagesDir = [Path]::Combine($RootPath, 'packages')
 $modulePath = [Path]::Combine($RootPath, 'Module', 'AadAuthenticationFactory')
