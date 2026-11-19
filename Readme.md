@@ -46,6 +46,15 @@ Confidential-client integration tests are tagged `integration` and need the tena
 
 On PowerShell Core, the module resolves MSAL broker native imports directly from its bundled `runtimes/<rid>/native` directory. No global native-library search path changes or copies into the PowerShell installation are required.
 
+Windows PowerShell Desktop restores its four identity packages from
+`Workflow/Desktop/Dependencies.csproj`: Microsoft.Identity.Client and
+Microsoft.Identity.Client.Broker 4.78.0, Microsoft.IdentityModel.Abstractions
+8.14.0, and Microsoft.Identity.Client.NativeInterop 0.19.4. These managed
+assemblies are bundled in `shared/net462`, including the netstandard2.0 broker
+and interop assemblies. PowerShell Core retains its existing package versions
+in `Workflow/Dependencies.csproj` and assemblies in `shared/netstandard2.0`.
+Both editions continue to use the common `runtimes/<rid>/native` binaries.
+
 ### macOS broker helper
 
 Ordinary PowerShell runspaces do not run on the native macOS main thread required

@@ -51,6 +51,68 @@ Describe 'AadAuthenticationFactory module surface' {
     }
 }
 
+Describe 'Edition-specific identity packages' {
+    It 'bundles each edition identity assembly from its pinned package' {
+        $identityPackages = @(
+            'Microsoft.Identity.Client',
+            'Microsoft.Identity.Client.Broker',
+            'Microsoft.IdentityModel.Abstractions',
+            'Microsoft.Identity.Client.NativeInterop'
+        )
+        foreach ($edition in @('Core', 'Desktop')) {
+            $projectPath = Join-Path $repoRoot 'Workflow/Dependencies.csproj'
+            $destinationFramework = 'netstandard2.0'
+            if ($edition -eq 'Desktop') {
+                $projectPath = Join-Path $repoRoot 'Workflow/Desktop/Dependencies.csproj'
+                $destinationFramework = 'net462'
+            }
+
+            $references = ([xml](Get-Content -LiteralPath $projectPath -Raw)).Project.ItemGroup.PackageReference
+            foreach ($reference in $references) {
+                $packageId = [string]$reference.Include
+                if ($packageId -notin $identityPackages) {
+                    continue
+                }
+
+                $sourceFramework = $destinationFramework
+                if ($packageId -in @('Microsoft.Identity.Client.Broker', 'Microsoft.Identity.Client.NativeInterop')) {
+                    $sourceFramework = 'netstandard2.0'
+                }
+                $source = Join-Path $repoRoot (
+                    'packages/{0}/{1}/lib/{2}/{3}.dll' -f
+                    $packageId.ToLowerInvariant(), $reference.Version, $sourceFramework, $packageId
+                )
+                $destination = Join-Path (Split-Path $moduleManifestPath) "shared/$destinationFramework/$packageId.dll"
+
+                $destination | Should -Exist
+                (Get-FileHash -LiteralPath $destination).Hash |
+                    Should -Be (Get-FileHash -LiteralPath $source).Hash
+            }
+        }
+    }
+
+    It 'loads the identity assemblies from the current edition directory' {
+        $framework = 'netstandard2.0'
+        $typeNames = @(
+            'Microsoft.Identity.Client.PublicClientApplication',
+            'Microsoft.Identity.Client.Broker.BrokerExtension'
+        )
+        if ($PSEdition -eq 'Desktop') {
+            $framework = 'net462'
+            $typeNames += @(
+                'Microsoft.IdentityModel.Abstractions.IIdentityLogger',
+                'Microsoft.Identity.Client.NativeInterop.Core'
+            )
+        }
+
+        foreach ($typeName in $typeNames) {
+            $assembly = ($typeName -as [type]).Assembly
+            $expectedPath = Join-Path (Split-Path $moduleManifestPath) "shared/$framework/$($assembly.GetName().Name).dll"
+            $assembly.Location | Should -Be $expectedPath
+        }
+    }
+}
+
 Describe 'Factory lifecycle' {
     It 'creates and retrieves a named factory' {
         $factoryName = "PesterFactory_$([Guid]::NewGuid().ToString('N'))"

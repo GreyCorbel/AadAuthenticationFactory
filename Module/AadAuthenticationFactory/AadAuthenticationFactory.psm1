@@ -1928,13 +1928,17 @@ function Init {
         else {
             # Windows PowerShell 5.1: use net462
             $sharedDir = [Path]::Combine($moduleRoot, 'shared', 'net462')
-            $brokerDir = [Path]::Combine($moduleRoot, 'shared', 'netstandard2.0')
+            $brokerDir = $sharedDir
+
+            foreach ($dependency in @('Microsoft.IdentityModel.Abstractions', 'Microsoft.Identity.Client.NativeInterop')) {
+                Add-Type -Path ([Path]::Combine($sharedDir, "$dependency.dll")) -ErrorAction Stop | Out-Null
+            }
         }
 
         $sharedMsalPath = [Path]::Combine($sharedDir, 'Microsoft.Identity.Client.dll')
         $sharedMsalVersion = if (Test-Path $sharedMsalPath) { Get-AssemblyVersionFromPath -Path $sharedMsalPath } else { $null }
 
-        # Broker bits are typically netstandard2.0
+        # Desktop keeps its netstandard2.0 broker assembly alongside its net462 MSAL.
         $brokerDll = [Path]::Combine($brokerDir, 'Microsoft.Identity.Client.Broker.dll')
         $brokerVersion = if (Test-Path $brokerDll) { Get-AssemblyVersionFromPath -Path $brokerDll } else { $null }
 
