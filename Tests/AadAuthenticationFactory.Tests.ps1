@@ -2,10 +2,13 @@ Set-StrictMode -Version Latest
 
 BeforeAll {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $moduleManifestPath = [System.IO.Path]::Combine(
+    $modulePath = [System.IO.Path]::Combine(
         $repoRoot,
         'Module',
-        'AadAuthenticationFactory',
+        'AadAuthenticationFactory'
+    )
+    $moduleManifestPath = [System.IO.Path]::Combine(
+        $modulePath,
         'AadAuthenticationFactory.psd1'
     )
 
@@ -13,7 +16,7 @@ BeforeAll {
         throw "Module manifest not found at $moduleManifestPath"
     }
 
-    Import-Module $moduleManifestPath -ErrorAction Stop
+    Import-Module $modulePath -ErrorAction Stop
 
     function ConvertTo-Base64Url {
         param(
@@ -82,7 +85,7 @@ Describe 'Edition-specific identity packages' {
                     'packages/{0}/{1}/lib/{2}/{3}.dll' -f
                     $packageId.ToLowerInvariant(), $reference.Version, $sourceFramework, $packageId
                 )
-                $destination = Join-Path (Split-Path $moduleManifestPath) "shared/$destinationFramework/$packageId.dll"
+                $destination = Join-Path $modulePath "shared/$destinationFramework/$packageId.dll"
 
                 $destination | Should -Exist
                 (Get-FileHash -LiteralPath $destination).Hash |
@@ -107,7 +110,7 @@ Describe 'Edition-specific identity packages' {
 
         foreach ($typeName in $typeNames) {
             $assembly = ($typeName -as [type]).Assembly
-            $expectedPath = Join-Path (Split-Path $moduleManifestPath) "shared/$framework/$($assembly.GetName().Name).dll"
+            $expectedPath = Join-Path $modulePath "shared/$framework/$($assembly.GetName().Name).dll"
             $assembly.Location | Should -Be $expectedPath
         }
     }

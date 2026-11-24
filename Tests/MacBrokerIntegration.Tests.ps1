@@ -1,8 +1,8 @@
 Set-StrictMode -Version Latest
 
 BeforeDiscovery {
-    $manifest = Join-Path $PSScriptRoot '../Module/AadAuthenticationFactory/AadAuthenticationFactory.psd1'
-    Import-Module $manifest -ErrorAction Stop
+    $modulePath = Join-Path $PSScriptRoot '../Module/AadAuthenticationFactory'
+    Import-Module $modulePath -ErrorAction Stop
 }
 
 Describe 'Mac broker MSAL compatibility' {
